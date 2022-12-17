@@ -1,0 +1,12 @@
+shapes:
+  percent:
+    - top left: big circle
+    - bottom right: big circle
+    - bottom left to top right: line
+  abstract1:
+    - hatched polygon:
+      - bottom left to left: line
+      - left to top: curve down
+      - bottom to bottom left: line
+    - top to right: line
+    - right to bottom: line
