@@ -1,12 +1,12 @@
 [package]
 name = "shapemaker"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chumsky = "0.8.0"
 docopt = "1.1.1"
+rand = "0.8.5"
 serde = "1.0.147"
-svg = "0.12.1"
+svg = "0.13.0"

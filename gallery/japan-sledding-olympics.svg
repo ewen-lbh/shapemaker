@@ -1,0 +1,17 @@
+<svg viewBox="-10 -10 120 120" xmlns="http://www.w3.org/2000/svg">
+<g>
+<path d="M0,100 Q100,100,100,0" style="fill: none; stroke: black; stroke-width: 2px;"/>
+</g>
+<g style="fill: blue;">
+<path d="M0,50 L100,0 L50,0 L50,0 L50,0 L100,0 z"/>
+</g>
+<g>
+<circle cx="25" cy="25" r="25" style="fill: brown;"/>
+</g>
+<g>
+<circle cx="100" cy="0" r="5" style="fill: none; stroke: black; stroke-width: 0.5px;"/>
+</g>
+<g>
+<line style="fill: none; stroke: black; stroke-width: 2px;" x1="100" x2="100" y1="100" y2="0"/>
+</g>
+</svg>

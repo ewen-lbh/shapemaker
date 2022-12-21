@@ -1,0 +1,17 @@
+<svg viewBox="-10 -10 120 120" xmlns="http://www.w3.org/2000/svg">
+<g>
+<circle cx="50" cy="50" r="2" style="fill: none; stroke: black; stroke-width: 0.5px;"/>
+</g>
+<g>
+<line style="fill: none; stroke: black; stroke-width: 2px;" x1="100" x2="0" y1="50" y2="0"/>
+</g>
+<g>
+<circle cx="25" cy="75" r="25" style="fill: none; stroke: black; stroke-width: 0.5px;"/>
+</g>
+<g>
+<line style="fill: none; stroke: gray; stroke-width: 2px;" x1="50" x2="100" y1="100" y2="0"/>
+</g>
+<g>
+<circle cx="100" cy="0" r="2" style="fill: purple;"/>
+</g>
+</svg>

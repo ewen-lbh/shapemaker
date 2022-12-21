@@ -1,0 +1,11 @@
+<svg viewBox="-10 -10 120 120" xmlns="http://www.w3.org/2000/svg">
+<g>
+<circle cx="50" cy="50" r="25" style="fill: none; stroke: black; stroke-width: 0.5px;"/>
+</g>
+<g>
+<line style="fill: none; stroke: blue; stroke-width: 2px;" x1="0" x2="100" y1="50" y2="0"/>
+</g>
+<g>
+<path d="M50,100 Q50,50,100,50" style="fill: none; stroke: black; stroke-width: 2px;"/>
+</g>
+</svg>
