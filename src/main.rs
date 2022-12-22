@@ -1,4 +1,4 @@
-use std::{collections::HashMap, borrow::Borrow};
+use std::{borrow::Borrow, collections::HashMap};
 
 use docopt::Docopt;
 use rand::Rng;
@@ -34,19 +34,10 @@ fn main() {
 
     let shape = random_shape("test");
 
-    std::fs::write(shape.name.to_owned() + ".svg", shape.render());
-
-    // let file_contents = std::fs::read_to_string(&args.arg_file).unwrap();
-    // let shape: Vec<Object> = match parser().parse(file_contents) {
-    //     Ok(shape) => {
-    //         println!("Parsed shape: {:#?}", shape);
-    //         shape
-    //     }
-    //     Err(e) => {
-    //         println!("Error: {:?}", e);
-    //         std::process::exit(1);
-    //     }
-    // };
+    if let Err(e) = std::fs::write(args.arg_file, shape.render()) {
+        eprintln!("Error: {:?}", e);
+        std::process::exit(1);
+    }
 }
 
 fn random_shape(name: &'static str) -> Shape {
@@ -341,7 +332,7 @@ impl Shape {
             let mut group = svg::node::element::Group::new();
             match object {
                 Object::Polygon(start, lines) => {
-                    println!("render: polygon({:?}, {:?})", start, lines);
+                    eprintln!("render: polygon({:?}, {:?})", start, lines);
                     let mut path = svg::node::element::path::Data::new();
                     path = path.move_to((start.x(), start.y()));
                     for line in lines {
@@ -350,17 +341,6 @@ impl Shape {
                                 path.line_to((end.x(), end.y()))
                             }
                         };
-                        // path = match line {
-                        //     Line::Line(end) => path.line_to((end.x(), end.y())),
-                        //     Line::InwardCurve(end) => path.quadratic_curve_to((
-                        //         (end.x(), end.y()),
-                        //         ((start.x() + end.x()) / 2.0, (start.y() + end.y()) / 2.0),
-                        //     )),
-                        //     Line::OutwardCurve(end) => path.quadratic_curve_to((
-                        //         (end.x(), end.y()),
-                        //         ((start.x() + end.x()) / 2.0, (start.y() + end.y()) / 2.0),
-                        //     )),
-                        // };
                     }
                     path = path.close();
                     group = group
@@ -372,12 +352,15 @@ impl Shape {
                                 Some(Fill::Solid(color)) => {
                                     format!("fill: {};", color.to_string())
                                 }
-                                _ => format!("fill: none; stroke: {}; stroke-width: 0.5px;", default_color),
+                                _ => format!(
+                                    "fill: none; stroke: {}; stroke-width: 0.5px;",
+                                    default_color
+                                ),
                             },
                         );
                 }
                 Object::Line(start, end) => {
-                    println!("render: line({:?}, {:?})", start, end);
+                    eprintln!("render: line({:?}, {:?})", start, end);
                     group = group.add(
                         svg::node::element::Line::new()
                             .set("x1", start.x())
@@ -389,38 +372,44 @@ impl Shape {
                                 match maybe_fill {
                                     // TODO
                                     Some(Fill::Solid(color)) => {
-                                        format!("fill: none; stroke: {}; stroke-width: 2px;", color.to_string())
+                                        format!(
+                                            "fill: none; stroke: {}; stroke-width: 2px;",
+                                            color.to_string()
+                                        )
                                     }
-                                    _ => format!("fill: none; stroke: {}; stroke-width: 2px;", default_color),
+                                    _ => format!(
+                                        "fill: none; stroke: {}; stroke-width: 2px;",
+                                        default_color
+                                    ),
                                 },
                             ),
                     );
                 }
                 Object::CurveInward(start, end) | Object::CurveOutward(start, end) => {
                     let inward = if matches!(object, Object::CurveInward(_, _)) {
-                        println!("render: curve_inward({:?}, {:?})", start, end);
+                        eprintln!("render: curve_inward({:?}, {:?})", start, end);
                         true
                     } else {
-                        println!("render: curve_outward({:?}, {:?})", start, end);
+                        eprintln!("render: curve_outward({:?}, {:?})", start, end);
                         false
                     };
 
                     let midpoint = ((start.x() + end.x()) / 2.0, (start.y() + end.y()) / 2.0);
                     let start_from_midpoint = (start.x() - midpoint.0, start.y() - midpoint.1);
                     let end_from_midpoint = (end.x() - midpoint.0, end.y() - midpoint.1);
-                    println!("        midpoint: {:?}", midpoint);
-                    println!(
+                    eprintln!("        midpoint: {:?}", midpoint);
+                    eprintln!(
                         "        from midpoint: {:?} -> {:?}",
                         start_from_midpoint, end_from_midpoint
                     );
                     let control = {
                         let relative = (end.x() - start.x(), end.y() - start.y());
-                        println!("        relative: {:?}", relative);
+                        eprintln!("        relative: {:?}", relative);
                         // diagonal line is going like this: \
                         if start_from_midpoint.0 * start_from_midpoint.1 > 0.0
                             && end_from_midpoint.0 * end_from_midpoint.1 > 0.0
                         {
-                            println!("        diagonal \\");
+                            eprintln!("        diagonal \\");
                             if inward {
                                 (
                                     midpoint.0 + relative.0.abs() / 2.0,
@@ -436,7 +425,7 @@ impl Shape {
                         } else if start_from_midpoint.0 * start_from_midpoint.1 < 0.0
                             && end_from_midpoint.0 * end_from_midpoint.1 < 0.0
                         {
-                            println!("        diagonal /");
+                            eprintln!("        diagonal /");
                             if inward {
                                 (
                                     midpoint.0 - relative.0.abs() / 2.0,
@@ -450,7 +439,7 @@ impl Shape {
                             }
                         // line is horizontal
                         } else if start.y() == end.y() {
-                            println!("        horizontal");
+                            eprintln!("        horizontal");
                             (
                                 midpoint.0,
                                 midpoint.1
@@ -458,7 +447,7 @@ impl Shape {
                             )
                         // line is vertical
                         } else if start.x() == end.x() {
-                            println!("        vertical");
+                            eprintln!("        vertical");
                             (
                                 midpoint.0
                                     + (if inward { -1.0 } else { 1.0 }) * relative.1.abs() / 2.0,
@@ -468,7 +457,7 @@ impl Shape {
                             unreachable!()
                         }
                     };
-                    println!("        control: {:?}", control);
+                    eprintln!("        control: {:?}", control);
                     group = group.add(
                         svg::node::element::Path::new()
                             .set(
@@ -482,15 +471,21 @@ impl Shape {
                                 match maybe_fill {
                                     // TODO
                                     Some(Fill::Solid(color)) => {
-                                        format!("fill: none; stroke: {}; stroke-width: 2px;", color.to_string())
+                                        format!(
+                                            "fill: none; stroke: {}; stroke-width: 2px;",
+                                            color.to_string()
+                                        )
                                     }
-                                    _ => format!("fill: none; stroke: {}; stroke-width: 2px;", default_color),
+                                    _ => format!(
+                                        "fill: none; stroke: {}; stroke-width: 2px;",
+                                        default_color
+                                    ),
                                 },
                             ),
                     );
                 }
                 Object::SmallCircle(center) => {
-                    println!("render: small_circle({:?})", center);
+                    eprintln!("render: small_circle({:?})", center);
                     group = group.add(
                         svg::node::element::Circle::new()
                             .set("cx", center.x())
@@ -503,13 +498,16 @@ impl Shape {
                                     Some(Fill::Solid(color)) => {
                                         format!("fill: {};", color.to_string())
                                     }
-                                    _ => format!("fill: none; stroke: {}; stroke-width: 0.5px;", default_color),
+                                    _ => format!(
+                                        "fill: none; stroke: {}; stroke-width: 0.5px;",
+                                        default_color
+                                    ),
                                 },
                             ),
                     );
                 }
                 Object::Dot(center) => {
-                    println!("render: dot({:?})", center);
+                    eprintln!("render: dot({:?})", center);
                     group = group.add(
                         svg::node::element::Circle::new()
                             .set("cx", center.x())
@@ -522,13 +520,16 @@ impl Shape {
                                     Some(Fill::Solid(color)) => {
                                         format!("fill: {};", color.to_string())
                                     }
-                                    _ => format!("fill: none; stroke: {}; stroke-width: 0.5px;", default_color),
+                                    _ => format!(
+                                        "fill: none; stroke: {}; stroke-width: 0.5px;",
+                                        default_color
+                                    ),
                                 },
                             ),
                     );
                 }
                 Object::BigCircle(center) => {
-                    println!("render: big_circle({:?})", center);
+                    eprintln!("render: big_circle({:?})", center);
                     group = group.add(
                         svg::node::element::Circle::new()
                             .set("cx", center.x())
@@ -541,13 +542,16 @@ impl Shape {
                                     Some(Fill::Solid(color)) => {
                                         format!("fill: {};", color.to_string())
                                     }
-                                    _ => format!("fill: none; stroke: {}; stroke-width: 0.5px;", default_color),
+                                    _ => format!(
+                                        "fill: none; stroke: {}; stroke-width: 0.5px;",
+                                        default_color
+                                    ),
                                 },
                             ),
                     );
                 }
             }
-            println!("        fill: {:?}", &maybe_fill);
+            eprintln!("        fill: {:?}", &maybe_fill);
             svg = svg.add(group);
         }
         // render a dotted grid
@@ -576,99 +580,3 @@ impl Object {
         )
     }
 }
-
-// fn parser() -> impl Parser<char, Vec<Object>, Error = Simple<char>> {
-//     let anchor = choice((
-//         just("top").to(Anchor::Top),
-//         just("top right").to(Anchor::TopRight),
-//         just("right").to(Anchor::Right),
-//         just("bottom right").to(Anchor::BottomRight),
-//         just("bottom").to(Anchor::Bottom),
-//         just("bottom left").to(Anchor::BottomLeft),
-//         just("left").to(Anchor::Left),
-//         just("top left").to(Anchor::TopLeft),
-//         just("center").to(Anchor::Center),
-//     ));
-//     let center_anchor = choice((
-//         just("top left").to(CenterAnchor::TopLeft),
-//         just("top right").to(CenterAnchor::TopRight),
-//         just("bottom left").to(CenterAnchor::BottomLeft),
-//         just("bottom right").to(CenterAnchor::BottomRight),
-//         just("center").to(CenterAnchor::Center),
-//     ));
-
-//     let straight_line = anchor.clone()
-//         .then_ignore(just("--").padded())
-//         .then(anchor)
-//         .map(|(a, b)| Line::Line(a, b));
-//     let inward_curve = &anchor
-//         .then_ignore(one_of("n(").padded())
-//         .then(&anchor)
-//         .map(|(a, b)| Line::InwardCurve(a, b));
-//     let outward_curve = &anchor
-//         .then_ignore(one_of("u(").padded())
-//         .then(&anchor)
-//         .map(|(a, b)| Line::OutwardCurve(a, b));
-//     let line = choice((straight_line, inward_curve, outward_curve));
-//     let polygon = line.padded().repeated().boxed().map(Object::Polygon);
-//     let point = &anchor
-//         .then_ignore(whitespace())
-//         .then_ignore(just("point"))
-//         .map(Object::SmallCircle);
-//     let circle = center_anchor
-//         .then_ignore(whitespace())
-//         .then_ignore(just("circle"))
-//         .map(Object::BigCircle);
-//     let dot = &anchor
-//         .then_ignore(whitespace())
-//         .then_ignore(just("dot"))
-//         .map(Object::Dot);
-//     let object = choice((polygon, point, dot, circle));
-//     // let color = choice((
-//     //     text::ident().map(Color::Named),
-//     //     just("#").ignored().then(text::int(16)).map(|(_, i)| {
-//     //         Color::RGBA(
-//     //             ((i >> 24) & 0xFF) as u8,
-//     //             ((i >> 16) & 0xFF) as u8,
-//     //             ((i >> 8) & 0xFF) as u8,
-//     //             (i & 0xFF) as u8,
-//     //         )
-//     //     }),
-//     // ));
-//     // let fill = choice((
-//     //     just("filled with")
-//     //         .ignored()
-//     //         .then_ignore(whitespace())
-//     //         .then(color)
-//     //         .map(|(_, c)| Fill::Solid(c)),
-//     //     just("hatched").to(Fill::Hatched),
-//     //     just("dotted").to(Fill::Dotted),
-//     // ));
-//     // let filled_object = just("[")
-//     //     .padded()
-//     //     .ignored()
-//     //     .then(object)
-//     //     .then_ignore(just("]").padded())
-//     //     .then(fill)
-//     //     .map(|((_, o), f)| (o, Some(f)));
-//     // let separator = newline().then_ignore(whitespace()).then_ignore(newline());
-//     // let header = take_until(just(":"))
-//     //     .then_ignore(whitespace())
-//     //     .then_ignore(newline())
-//     //     .map(|(i, _)| i);
-//     // let shape = header
-//     //     .then_ignore(whitespace())
-//     //     .then(
-//     //         filled_object
-//     //             .or(object.map(|o| (o, None)))
-//     //             .separated_by(newline()),
-//     //     )
-//     //     .map(|(name, objects)| Shape {
-//     //         name: name.into_iter().collect(),
-//     //         objects,
-//     //     });
-//     // filled_object
-//     //     .or(object.map(|o| (o, None)))
-//     //     .separated_by(newline())
-//     object.separated_by(newline())
-// }
