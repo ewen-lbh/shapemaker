@@ -1,3 +1,6 @@
+use serde_json;
+use std::fs::File;
+use std::io::BufReader;
 use std::{borrow::Borrow, collections::HashMap};
 
 use docopt::Docopt;
@@ -11,15 +14,39 @@ const USAGE: &'static str = "
 █▄▄▄█▄██▄█▄██▄█░████▄▄▄█▄███▄█▄██▄█▄█▄█▄▄▄█▄█▄▄█
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀vVERSION▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 
-Usage: shapemaker [options] <file>
+Usage: shapemaker [options] [--color <mapping>...] <file>
        shapemaker --help
        shapemaker --version
+    
+Options:
+    --colors <file>          JSON file mapping color names to hex values
+                             The supported color names are: black, white, red, green, blue, yellow, orange, purple, brown, pink, gray, and cyan.
+    -c --color <mapping>     Color mapping in the form of <color>:<hex>. Can be used multiple times.
 ";
+
+fn default_color_mapping() -> ColorMapping {
+    ColorMapping {
+        black: "black".to_string(),
+        white: "white".to_string(),
+        red: "red".to_string(),
+        green: "green".to_string(),
+        blue: "blue".to_string(),
+        yellow: "yellow".to_string(),
+        orange: "orange".to_string(),
+        purple: "purple".to_string(),
+        brown: "brown".to_string(),
+        pink: "pink".to_string(),
+        gray: "gray".to_string(),
+        cyan: "cyan".to_string(),
+    }
+}
 
 #[derive(Debug, Deserialize)]
 struct Args {
     arg_file: String,
     flag_version: bool,
+    flag_color: Vec<String>,
+    flag_colors: Option<String>,
 }
 
 fn main() {
@@ -33,8 +60,71 @@ fn main() {
     }
 
     let shape = random_shape("test");
+    let colormap = if let Some(file) = args.flag_colors {
+        let file = File::open(file).unwrap();
+        let reader = BufReader::new(file);
+        serde_json::from_reader(reader).unwrap()
+    } else {
+        let mut colormap: HashMap<String, String> = HashMap::new();
+        for mapping in args.flag_color {
+            let mut split = mapping.split(':');
+            let color = split.next().unwrap();
+            let hex = split.next().unwrap();
+            colormap.insert(color.to_string(), hex.to_string());
+        }
+        ColorMapping {
+            black: colormap
+                .get("black")
+                .unwrap_or(&default_color_mapping().black)
+                .to_string(),
+            white: colormap
+                .get("white")
+                .unwrap_or(&default_color_mapping().white)
+                .to_string(),
+            red: colormap
+                .get("red")
+                .unwrap_or(&default_color_mapping().red)
+                .to_string(),
+            green: colormap
+                .get("green")
+                .unwrap_or(&default_color_mapping().green)
+                .to_string(),
+            blue: colormap
+                .get("blue")
+                .unwrap_or(&default_color_mapping().blue)
+                .to_string(),
+            yellow: colormap
+                .get("yellow")
+                .unwrap_or(&default_color_mapping().yellow)
+                .to_string(),
+            orange: colormap
+                .get("orange")
+                .unwrap_or(&default_color_mapping().orange)
+                .to_string(),
+            purple: colormap
+                .get("purple")
+                .unwrap_or(&default_color_mapping().purple)
+                .to_string(),
+            brown: colormap
+                .get("brown")
+                .unwrap_or(&default_color_mapping().brown)
+                .to_string(),
+            pink: colormap
+                .get("pink")
+                .unwrap_or(&default_color_mapping().pink)
+                .to_string(),
+            gray: colormap
+                .get("gray")
+                .unwrap_or(&default_color_mapping().gray)
+                .to_string(),
+            cyan: colormap
+                .get("cyan")
+                .unwrap_or(&default_color_mapping().cyan)
+                .to_string(),
+        }
+    };
 
-    if let Err(e) = std::fs::write(args.arg_file, shape.render()) {
+    if let Err(e) = std::fs::write(args.arg_file, shape.render(colormap)) {
         eprintln!("Error: {:?}", e);
         std::process::exit(1);
     }
@@ -127,11 +217,9 @@ fn random_polygon() -> Object {
     let number_of_anchors = rand::thread_rng().gen_range(2..7);
     let start = random_anchor();
     let mut lines: Vec<Line> = vec![];
-    let mut last_anchor = start.clone();
     for _ in 0..number_of_anchors {
         let next_anchor = random_anchor();
         lines.push(random_line(next_anchor));
-        last_anchor = next_anchor.clone();
     }
     Object::Polygon(start, lines)
 }
@@ -303,30 +391,66 @@ enum Color {
     Gray,
 }
 
-impl Color {
-    fn to_string(self) -> String {
-        match self {
-            Color::Black => "black",
-            Color::White => "white",
-            Color::Red => "red",
-            Color::Green => "green",
-            Color::Blue => "blue",
-            Color::Yellow => "yellow",
-            Color::Orange => "orange",
-            Color::Purple => "purple",
-            Color::Brown => "brown",
-            Color::Cyan => "cyan",
-            Color::Pink => "pink",
-            Color::Gray => "gray",
+#[derive(Debug, Deserialize, Clone)]
+struct ColorMapping {
+    black: String,
+    white: String,
+    red: String,
+    green: String,
+    blue: String,
+    yellow: String,
+    orange: String,
+    purple: String,
+    brown: String,
+    cyan: String,
+    pink: String,
+    gray: String,
+}
+
+impl ColorMapping {
+    fn from_json_file(path: &str) -> ColorMapping {
+        let file = File::open(path).unwrap();
+        let reader = BufReader::new(file);
+        let json: serde_json::Value = serde_json::from_reader(reader).unwrap();
+        ColorMapping {
+            black: json["black"].as_str().unwrap().to_string(),
+            white: json["white"].as_str().unwrap().to_string(),
+            red: json["red"].as_str().unwrap().to_string(),
+            green: json["green"].as_str().unwrap().to_string(),
+            blue: json["blue"].as_str().unwrap().to_string(),
+            yellow: json["yellow"].as_str().unwrap().to_string(),
+            orange: json["orange"].as_str().unwrap().to_string(),
+            purple: json["purple"].as_str().unwrap().to_string(),
+            brown: json["brown"].as_str().unwrap().to_string(),
+            cyan: json["cyan"].as_str().unwrap().to_string(),
+            pink: json["pink"].as_str().unwrap().to_string(),
+            gray: json["gray"].as_str().unwrap().to_string(),
         }
-        .to_string()
+    }
+}
+
+impl Color {
+    fn to_string(self, mapping: &ColorMapping) -> String {
+        match self {
+            Color::Black => mapping.black.to_string(),
+            Color::White => mapping.white.to_string(),
+            Color::Red => mapping.red.to_string(),
+            Color::Green => mapping.green.to_string(),
+            Color::Blue => mapping.blue.to_string(),
+            Color::Yellow => mapping.yellow.to_string(),
+            Color::Orange => mapping.orange.to_string(),
+            Color::Purple => mapping.purple.to_string(),
+            Color::Brown => mapping.brown.to_string(),
+            Color::Cyan => mapping.cyan.to_string(),
+            Color::Pink => mapping.pink.to_string(),
+            Color::Gray => mapping.gray.to_string(),
+        }
     }
 }
 
 impl Shape {
-    fn render(self) -> String {
-        let default_color = "black";
-        let mut output = String::new();
+    fn render(self, colormap: ColorMapping) -> String {
+        let default_color = Color::Black.to_string(&colormap);
         let mut svg = svg::Document::new();
         for (object, maybe_fill) in self.objects {
             let mut group = svg::node::element::Group::new();
@@ -350,7 +474,7 @@ impl Shape {
                             match maybe_fill {
                                 // TODO
                                 Some(Fill::Solid(color)) => {
-                                    format!("fill: {};", color.to_string())
+                                    format!("fill: {};", color.to_string(&colormap))
                                 }
                                 _ => format!(
                                     "fill: none; stroke: {}; stroke-width: 0.5px;",
@@ -374,7 +498,7 @@ impl Shape {
                                     Some(Fill::Solid(color)) => {
                                         format!(
                                             "fill: none; stroke: {}; stroke-width: 2px;",
-                                            color.to_string()
+                                            color.to_string(&colormap)
                                         )
                                     }
                                     _ => format!(
@@ -473,7 +597,7 @@ impl Shape {
                                     Some(Fill::Solid(color)) => {
                                         format!(
                                             "fill: none; stroke: {}; stroke-width: 2px;",
-                                            color.to_string()
+                                            color.to_string(&colormap)
                                         )
                                     }
                                     _ => format!(
@@ -496,7 +620,7 @@ impl Shape {
                                 match maybe_fill {
                                     // TODO
                                     Some(Fill::Solid(color)) => {
-                                        format!("fill: {};", color.to_string())
+                                        format!("fill: {};", color.to_string(&colormap))
                                     }
                                     _ => format!(
                                         "fill: none; stroke: {}; stroke-width: 0.5px;",
@@ -518,7 +642,7 @@ impl Shape {
                                 match maybe_fill {
                                     // TODO
                                     Some(Fill::Solid(color)) => {
-                                        format!("fill: {};", color.to_string())
+                                        format!("fill: {};", color.to_string(&colormap))
                                     }
                                     _ => format!(
                                         "fill: none; stroke: {}; stroke-width: 0.5px;",
@@ -540,7 +664,7 @@ impl Shape {
                                 match maybe_fill {
                                     // TODO
                                     Some(Fill::Solid(color)) => {
-                                        format!("fill: {};", color.to_string())
+                                        format!("fill: {};", color.to_string(&colormap))
                                     }
                                     _ => format!(
                                         "fill: none; stroke: {}; stroke-width: 0.5px;",
@@ -568,7 +692,12 @@ impl Shape {
                 }
             }
         }
-        svg.set("viewBox", "-10 -10 120 120").to_string()
+        svg.set("viewBox", "-10 -10 120 120")
+            .set(
+                "style",
+                format!("background-color: {};", Color::White.to_string(&colormap)),
+            )
+            .to_string()
     }
 }
 
