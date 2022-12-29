@@ -451,7 +451,16 @@ impl Color {
 impl Shape {
     fn render(self, colormap: ColorMapping) -> String {
         let default_color = Color::Black.to_string(&colormap);
-        let mut svg = svg::Document::new();
+        let background_color = random_color();
+        eprintln!("render: background_color({:?})", background_color);
+        let mut svg = svg::Document::new().add(
+            svg::node::element::Rectangle::new()
+                .set("x", -10)
+                .set("y", -10)
+                .set("width", 130)
+                .set("height", 130)
+                .set("fill", background_color.to_string(&colormap)),
+        );
         for (object, maybe_fill) in self.objects {
             let mut group = svg::node::element::Group::new();
             match object {
@@ -692,12 +701,7 @@ impl Shape {
                 }
             }
         }
-        svg.set("viewBox", "-10 -10 120 120")
-            .set(
-                "style",
-                format!("background-color: {};", Color::White.to_string(&colormap)),
-            )
-            .to_string()
+        svg.set("viewBox", "-10 -10 120 120").to_string()
     }
 }
 
