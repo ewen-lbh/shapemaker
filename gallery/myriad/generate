@@ -1,0 +1,44 @@
+#!/usr/bin/env fish
+
+set wipe "                                                          "
+
+for i in (seq 1 16)
+    for j in (seq 1 9)
+        echo -ne Making piece $i:$j\r
+        shapemaker piece-$i-$j.svg --colors $argv[1] \
+            --grid-size 2x2 \
+            # --render-grid \
+            # --canvas-padding 0 \
+            # --objects-count 0..1 \
+            # --line-width 16 \
+            # --empty-shape-stroke 4 \
+            # --dot-radius 5 \
+            # --small-circle-radius 10 \
+        2>/dev/null &
+    end
+end
+
+wait
+echo Made pieces$wipe
+
+for f in piece-*.svg
+    set dest (echo $f | sd '.svg$' '.png')
+    echo -ne Converting $f to PNG...\r
+    rm $dest || true
+    convert -density 200 $f $dest &
+end
+
+wait
+echo Converted all pieces to PNG$wipe
+
+for j in (seq 1 9)
+    echo -ne Merging pieces into bar $j...\r
+    convert +append piece-*-$j.png bar-$j.png &
+end
+
+wait
+echo Merged pieces into bars$wipe
+
+echo Merging bars into myriad...
+convert -append bar-*.png myriad.png
+echo Done.

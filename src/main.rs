@@ -1,6 +1,9 @@
+use rand::distributions::uniform::SampleRange;
 use serde_json;
 use std::fs::File;
 use std::io::BufReader;
+use std::ops::Range;
+use std::sync::Arc;
 use std::{borrow::Borrow, collections::HashMap};
 
 use docopt::Docopt;
@@ -19,27 +22,25 @@ Usage: shapemaker [options] [--color <mapping>...] <file>
        shapemaker --version
     
 Options:
-    --colors <file>          JSON file mapping color names to hex values
-                             The supported color names are: black, white, red, green, blue, yellow, orange, purple, brown, pink, gray, and cyan.
-    -c --color <mapping>     Color mapping in the form of <color>:<hex>. Can be used multiple times.
-";
+    --colors <file>                JSON file mapping color names to hex values
+                                   The supported color names are: black, white, red, green, blue, yellow, orange, purple, brown, pink, gray, and cyan.
+    -c --color <mapping>           Color mapping in the form of <color>:<hex>. Can be used multiple times.
+    --grid-size <WIDTHxHEIGHT>     Size of the grid (number of anchor points) [default: 3x3]
+                                   Putting one of the dimensions to 1 can cause a crash.
+    --cell-size <size>             Size of a cell in pixels [default: 50]
+    --canvas-padding <size>        Outter canvas padding between cells in pixels [default: 10]
+    --line-width <size>            Width of the lines in pixels [default: 2]
+    --small-circle-radius <size>   Radius of small circles in pixels [default: 5]
+    --dot-radius <size>            Radius of dots in pixels [default: 2]
+    --empty-shape-stroke <size>    Width of the stroke when a closed shape is not filled [default: 0.5]
+    --render-grid                  Render the grid of anchor points
+    --objects-count <range>        Number of objects to render [default: 3..6]
+    --polygon-vertices <range>     Number of vertices for polygons [default: 2..6]
 
-fn default_color_mapping() -> ColorMapping {
-    ColorMapping {
-        black: "black".to_string(),
-        white: "white".to_string(),
-        red: "red".to_string(),
-        green: "green".to_string(),
-        blue: "blue".to_string(),
-        yellow: "yellow".to_string(),
-        orange: "orange".to_string(),
-        purple: "purple".to_string(),
-        brown: "brown".to_string(),
-        pink: "pink".to_string(),
-        gray: "gray".to_string(),
-        cyan: "cyan".to_string(),
-    }
-}
+        Note: <range>s are inclusive on both ends
+    
+
+";
 
 #[derive(Debug, Deserialize)]
 struct Args {
@@ -47,6 +48,16 @@ struct Args {
     flag_version: bool,
     flag_color: Vec<String>,
     flag_colors: Option<String>,
+    flag_grid_size: Option<String>,
+    flag_cell_size: Option<usize>,
+    flag_canvas_padding: Option<usize>,
+    flag_line_width: Option<f32>,
+    flag_small_circle_radius: Option<f32>,
+    flag_dot_radius: Option<f32>,
+    flag_empty_shape_stroke: Option<f32>,
+    flag_render_grid: bool,
+    flag_objects_count: Option<String>,
+    flag_polygon_vertices: Option<String>,
 }
 
 fn main() {
@@ -59,8 +70,9 @@ fn main() {
         std::process::exit(0);
     }
 
-    let shape = random_shape("test");
-    let colormap = if let Some(file) = args.flag_colors {
+    let mut canvas = Canvas::default_settings();
+
+    canvas.colormap = if let Some(file) = args.flag_colors {
         let file = File::open(file).unwrap();
         let reader = BufReader::new(file);
         serde_json::from_reader(reader).unwrap()
@@ -75,215 +87,279 @@ fn main() {
         ColorMapping {
             black: colormap
                 .get("black")
-                .unwrap_or(&default_color_mapping().black)
+                .unwrap_or(&ColorMapping::default().black)
                 .to_string(),
             white: colormap
                 .get("white")
-                .unwrap_or(&default_color_mapping().white)
+                .unwrap_or(&ColorMapping::default().white)
                 .to_string(),
             red: colormap
                 .get("red")
-                .unwrap_or(&default_color_mapping().red)
+                .unwrap_or(&ColorMapping::default().red)
                 .to_string(),
             green: colormap
                 .get("green")
-                .unwrap_or(&default_color_mapping().green)
+                .unwrap_or(&ColorMapping::default().green)
                 .to_string(),
             blue: colormap
                 .get("blue")
-                .unwrap_or(&default_color_mapping().blue)
+                .unwrap_or(&ColorMapping::default().blue)
                 .to_string(),
             yellow: colormap
                 .get("yellow")
-                .unwrap_or(&default_color_mapping().yellow)
+                .unwrap_or(&ColorMapping::default().yellow)
                 .to_string(),
             orange: colormap
                 .get("orange")
-                .unwrap_or(&default_color_mapping().orange)
+                .unwrap_or(&ColorMapping::default().orange)
                 .to_string(),
             purple: colormap
                 .get("purple")
-                .unwrap_or(&default_color_mapping().purple)
+                .unwrap_or(&ColorMapping::default().purple)
                 .to_string(),
             brown: colormap
                 .get("brown")
-                .unwrap_or(&default_color_mapping().brown)
+                .unwrap_or(&ColorMapping::default().brown)
                 .to_string(),
             pink: colormap
                 .get("pink")
-                .unwrap_or(&default_color_mapping().pink)
+                .unwrap_or(&ColorMapping::default().pink)
                 .to_string(),
             gray: colormap
                 .get("gray")
-                .unwrap_or(&default_color_mapping().gray)
+                .unwrap_or(&ColorMapping::default().gray)
                 .to_string(),
             cyan: colormap
                 .get("cyan")
-                .unwrap_or(&default_color_mapping().cyan)
+                .unwrap_or(&ColorMapping::default().cyan)
                 .to_string(),
         }
     };
 
-    if let Err(e) = std::fs::write(args.arg_file, shape.render(colormap)) {
+    if let Some(dimensions) = args.flag_grid_size {
+        let mut split = dimensions.split('x');
+        let width = split.next().unwrap().parse::<usize>().unwrap();
+        let height = split.next().unwrap().parse::<usize>().unwrap();
+        canvas.grid_size = (width, height);
+    }
+
+    if let Some(cell_size) = args.flag_cell_size {
+        canvas.cell_size = cell_size;
+    }
+
+    if let Some(canvas_padding) = args.flag_canvas_padding {
+        canvas.canvas_outter_padding = canvas_padding;
+    }
+
+    if let Some(line_width) = args.flag_line_width {
+        canvas.line_width = line_width;
+    }
+
+    if let Some(small_circle_radius) = args.flag_small_circle_radius {
+        canvas.small_circle_radius = small_circle_radius;
+    }
+
+    if let Some(dot_radius) = args.flag_dot_radius {
+        canvas.dot_radius = dot_radius;
+    }
+
+    if let Some(empty_shape_stroke) = args.flag_empty_shape_stroke {
+        canvas.empty_shape_stroke_width = empty_shape_stroke;
+    }
+
+    canvas.render_grid = args.flag_render_grid;
+
+    if let Some(objects_count) = args.flag_objects_count {
+        let mut split = objects_count.split("..");
+        let min = split.next().unwrap().parse::<usize>().unwrap();
+        let max = split.next().unwrap().parse::<usize>().unwrap();
+        // +1 because the range is exclusive, using ..= raises a type error
+        canvas.objects_count_range = min..(max + 1);
+    }
+
+    if let Some(polygon_vertices) = args.flag_polygon_vertices {
+        let mut split = polygon_vertices.split("..");
+        let min = split.next().unwrap().parse::<usize>().unwrap();
+        let max = split.next().unwrap().parse::<usize>().unwrap();
+        canvas.polygon_vertices_range = min..(max + 1);
+    }
+
+    let shape = canvas.random_shape("test");
+
+    if let Err(e) = std::fs::write(args.arg_file, shape.render(&canvas)) {
         eprintln!("Error: {:?}", e);
         std::process::exit(1);
     }
 }
 
-fn random_shape(name: &'static str) -> Shape {
-    let mut objects: Vec<(Object, Option<Fill>)> = vec![];
-    let number_of_objects = rand::thread_rng().gen_range(3..7);
-    for _ in 0..number_of_objects {
-        let object = random_object();
-        objects.push((
-            object,
-            if rand::thread_rng().gen_bool(0.5) {
-                Some(random_fill())
-            } else {
-                None
-            },
-        ));
+#[derive(Debug, Clone)]
+struct Canvas {
+    grid_size: (usize, usize),
+    cell_size: usize,
+    objects_count_range: Range<usize>,
+    polygon_vertices_range: Range<usize>,
+    canvas_outter_padding: usize,
+    line_width: f32,
+    empty_shape_stroke_width: f32,
+    small_circle_radius: f32,
+    dot_radius: f32,
+    render_grid: bool,
+    colormap: ColorMapping,
+}
+
+impl Canvas {
+    fn default_settings() -> Self {
+        Self {
+            grid_size: (3, 3),
+            cell_size: 50,
+            objects_count_range: 3..7,
+            polygon_vertices_range: 2..7,
+            canvas_outter_padding: 10,
+            line_width: 2.0,
+            empty_shape_stroke_width: 0.5,
+            small_circle_radius: 5.0,
+            dot_radius: 2.0,
+            render_grid: false,
+            colormap: ColorMapping::default(),
+        }
     }
-    Shape { name, objects }
-}
-
-fn random_object() -> Object {
-    let start = random_anchor();
-    match rand::thread_rng().gen_range(1..=7) {
-        1 => random_polygon(),
-        2 => Object::BigCircle(random_center_anchor()),
-        3 => Object::SmallCircle(start),
-        4 => Object::Dot(start),
-        5 => Object::CurveInward(start, random_end_anchor(start)),
-        6 => Object::CurveOutward(start, random_end_anchor(start)),
-        7 => Object::Line(random_anchor(), random_anchor()),
-        _ => unreachable!(),
+    fn random_shape(&self, name: &'static str) -> Shape {
+        let mut objects: Vec<(Object, Option<Fill>)> = vec![];
+        let number_of_objects = rand::thread_rng().gen_range(self.objects_count_range.clone());
+        for _ in 0..number_of_objects {
+            let object = self.random_object();
+            objects.push((
+                object,
+                if rand::thread_rng().gen_bool(0.5) {
+                    Some(self.random_fill())
+                } else {
+                    None
+                },
+            ));
+        }
+        Shape { name, objects }
     }
-}
 
-fn random_end_anchor(start: Anchor) -> Anchor {
-    match start {
-        Anchor::TopLeft => match rand::thread_rng().gen_range(1..=2) {
-            1 => Anchor::Center,
-            2 => Anchor::BottomRight,
+    fn random_object(&self) -> Object {
+        let start = self.random_anchor();
+        match rand::thread_rng().gen_range(1..=7) {
+            1 => self.random_polygon(),
+            2 => Object::BigCircle(self.random_center_anchor()),
+            3 => Object::SmallCircle(start),
+            4 => Object::Dot(start),
+            5 => Object::CurveInward(start, self.random_end_anchor(start)),
+            6 => Object::CurveOutward(start, self.random_end_anchor(start)),
+            7 => Object::Line(self.random_anchor(), self.random_anchor()),
             _ => unreachable!(),
-        },
-        Anchor::Top => match rand::thread_rng().gen_range(1..=2) {
-            1 => Anchor::Left,
-            2 => Anchor::Right,
-            _ => unreachable!(),
-        },
-        Anchor::TopRight => match rand::thread_rng().gen_range(1..=2) {
-            1 => Anchor::Center,
-            2 => Anchor::BottomLeft,
-            _ => unreachable!(),
-        },
-        Anchor::Left => match rand::thread_rng().gen_range(1..=2) {
-            1 => Anchor::Top,
-            2 => Anchor::Bottom,
-            _ => unreachable!(),
-        },
-        Anchor::Center => match rand::thread_rng().gen_range(1..=4) {
-            1 => Anchor::TopLeft,
-            2 => Anchor::TopRight,
-            3 => Anchor::BottomLeft,
-            4 => Anchor::BottomRight,
-            _ => unreachable!(),
-        },
-        Anchor::Right => match rand::thread_rng().gen_range(1..=2) {
-            1 => Anchor::Top,
-            2 => Anchor::Bottom,
-            _ => unreachable!(),
-        },
-        Anchor::BottomLeft => match rand::thread_rng().gen_range(1..=2) {
-            1 => Anchor::Center,
-            2 => Anchor::TopRight,
-            _ => unreachable!(),
-        },
-        Anchor::Bottom => match rand::thread_rng().gen_range(1..=2) {
-            1 => Anchor::Left,
-            2 => Anchor::Right,
-            _ => unreachable!(),
-        },
-        Anchor::BottomRight => match rand::thread_rng().gen_range(1..=2) {
-            1 => Anchor::Center,
-            2 => Anchor::TopLeft,
-            _ => unreachable!(),
-        },
+        }
     }
-}
 
-fn random_polygon() -> Object {
-    let number_of_anchors = rand::thread_rng().gen_range(2..7);
-    let start = random_anchor();
-    let mut lines: Vec<Line> = vec![];
-    for _ in 0..number_of_anchors {
-        let next_anchor = random_anchor();
-        lines.push(random_line(next_anchor));
+    fn random_end_anchor(&self, start: Anchor) -> Anchor {
+        // End anchors are always a square diagonal from the start anchor (for now)
+        // that means taking steps of the form n * (one of (1, 1), (1, -1), (-1, 1), (-1, -1))
+        // Except that the end anchor needs to stay in the bounds of the shape.
+
+        // Determine all possible end anchors that are in a square diagonal from the start anchor
+        let mut possible_end_anchors = vec![];
+        let grid_width = self.grid_size.0 as i32;
+        let grid_height = self.grid_size.1 as i32;
+
+        for x in -grid_width..=grid_width {
+            for y in -grid_height..=grid_height {
+                let end_anchor = Anchor(start.0 + x, start.1 + y);
+
+                if end_anchor == start {
+                    continue;
+                }
+
+                // Check that the end anchor is in a square diagonal from the start anchor and that the end anchor is in bounds
+                if x.abs() == y.abs()
+                    && end_anchor.0.abs() < grid_width
+                    && end_anchor.1.abs() < grid_height
+                    && end_anchor.0 >= 0
+                    && end_anchor.1 >= 0
+                {
+                    possible_end_anchors.push(end_anchor);
+                }
+            }
+        }
+
+        // Pick a random end anchor from the possible end anchors
+        possible_end_anchors[rand::thread_rng().gen_range(0..possible_end_anchors.len())]
     }
-    Object::Polygon(start, lines)
-}
 
-fn random_line(end: Anchor) -> Line {
-    match rand::thread_rng().gen_range(1..=3) {
-        1 => Line::Line(end),
-        2 => Line::InwardCurve(end),
-        3 => Line::OutwardCurve(end),
-        _ => unreachable!(),
+    fn random_polygon(&self) -> Object {
+        let number_of_anchors = rand::thread_rng().gen_range(self.polygon_vertices_range.clone());
+        let start = self.random_anchor();
+        let mut lines: Vec<Line> = vec![];
+        for _ in 0..number_of_anchors {
+            let next_anchor = self.random_anchor();
+            lines.push(self.random_line(next_anchor));
+        }
+        Object::Polygon(start, lines)
     }
-}
 
-fn random_anchor() -> Anchor {
-    match rand::thread_rng().gen_range(1..=9) {
-        1 => Anchor::TopLeft,
-        2 => Anchor::Top,
-        3 => Anchor::TopRight,
-        4 => Anchor::Left,
-        5 => Anchor::Center,
-        6 => Anchor::Right,
-        7 => Anchor::BottomLeft,
-        8 => Anchor::Bottom,
-        9 => Anchor::BottomRight,
-        _ => unreachable!(),
+    fn random_line(&self, end: Anchor) -> Line {
+        match rand::thread_rng().gen_range(1..=3) {
+            1 => Line::Line(end),
+            2 => Line::InwardCurve(end),
+            3 => Line::OutwardCurve(end),
+            _ => unreachable!(),
+        }
     }
-}
 
-fn random_center_anchor() -> CenterAnchor {
-    match rand::thread_rng().gen_range(1..=5) {
-        1 => CenterAnchor::TopLeft,
-        2 => CenterAnchor::TopRight,
-        3 => CenterAnchor::Center,
-        4 => CenterAnchor::BottomLeft,
-        5 => CenterAnchor::BottomRight,
-        _ => unreachable!(),
+    fn random_anchor(&self) -> Anchor {
+        if rand::thread_rng().gen_bool(1.0 / (self.grid_size.0 * self.grid_size.1) as f64) {
+            // small change of getting center (-1, -1) even when grid size would not permit it (e.g. 4x4)
+            Anchor(-1, -1)
+        } else {
+            Anchor(
+                rand::thread_rng().gen_range(0..=self.grid_size.0 - 1) as i32,
+                rand::thread_rng().gen_range(0..=self.grid_size.1 - 1) as i32,
+            )
+        }
     }
-}
 
-fn random_fill() -> Fill {
-    Fill::Solid(random_color())
-    // match rand::thread_rng().gen_range(1..=3) {
-    //     1 => Fill::Solid(random_color()),
-    //     2 => Fill::Hatched,
-    //     3 => Fill::Dotted,
-    //     _ => unreachable!(),
-    // }
-}
+    fn random_center_anchor(&self) -> CenterAnchor {
+        if rand::thread_rng()
+            .gen_bool(1.0 / ((self.grid_size.0 as i32 - 1) * (self.grid_size.1 as i32 - 1)) as f64)
+        {
+            // small change of getting center (-1, -1) even when grid size would not permit it (e.g. 3x3)
+            CenterAnchor(-1, -1)
+        } else {
+            CenterAnchor(
+                rand::thread_rng().gen_range(0..=self.grid_size.0 - 2) as i32,
+                rand::thread_rng().gen_range(0..=self.grid_size.1 - 2) as i32,
+            )
+        }
+    }
 
-fn random_color() -> Color {
-    match rand::thread_rng().gen_range(1..=12) {
-        1 => Color::Black,
-        2 => Color::White,
-        3 => Color::Red,
-        4 => Color::Green,
-        5 => Color::Blue,
-        6 => Color::Yellow,
-        7 => Color::Orange,
-        8 => Color::Purple,
-        9 => Color::Brown,
-        10 => Color::Pink,
-        11 => Color::Gray,
-        12 => Color::Cyan,
-        _ => unreachable!(),
+    fn random_fill(&self) -> Fill {
+        Fill::Solid(self.random_color())
+        // match rand::thread_rng().gen_range(1..=3) {
+        //     1 => Fill::Solid(random_color()),
+        //     2 => Fill::Hatched,
+        //     3 => Fill::Dotted,
+        //     _ => unreachable!(),
+        // }
+    }
+
+    fn random_color(&self) -> Color {
+        match rand::thread_rng().gen_range(1..=12) {
+            1 => Color::Black,
+            2 => Color::White,
+            3 => Color::Red,
+            4 => Color::Green,
+            5 => Color::Blue,
+            6 => Color::Yellow,
+            7 => Color::Orange,
+            8 => Color::Purple,
+            9 => Color::Brown,
+            10 => Color::Pink,
+            11 => Color::Gray,
+            12 => Color::Cyan,
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -305,59 +381,47 @@ enum Object {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Anchor {
-    Top,
-    TopRight,
-    Right,
-    BottomRight,
-    Bottom,
-    BottomLeft,
-    Left,
-    TopLeft,
-    Center,
+struct Anchor(i32, i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CenterAnchor(i32, i32);
+
+trait Coordinates {
+    fn coords(&self, canvas: &Canvas) -> (f32, f32);
+    fn center() -> Self;
 }
 
-impl Anchor {
-    fn x(&self) -> f32 {
+impl Coordinates for Anchor {
+    fn coords(&self, canvas: &Canvas) -> (f32, f32) {
         match self {
-            Anchor::TopLeft | Anchor::Left | Anchor::BottomLeft => 0.0,
-            Anchor::Top | Anchor::Center | Anchor::Bottom => 50.0,
-            Anchor::TopRight | Anchor::Right | Anchor::BottomRight => 100.0,
-        }
-    }
-    fn y(&self) -> f32 {
-        match self {
-            Anchor::TopLeft | Anchor::Top | Anchor::TopRight => 0.0,
-            Anchor::Left | Anchor::Center | Anchor::Right => 50.0,
-            Anchor::BottomLeft | Anchor::Bottom | Anchor::BottomRight => 100.0,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-enum CenterAnchor {
-    TopLeft,
-    TopRight,
-    BottomLeft,
-    BottomRight,
-    Center,
-}
-
-impl CenterAnchor {
-    fn x(&self) -> f32 {
-        match self {
-            CenterAnchor::TopLeft | CenterAnchor::BottomLeft => 25.0,
-            CenterAnchor::TopRight | CenterAnchor::BottomRight => 75.0,
-            CenterAnchor::Center => 50.0,
+            Anchor(-1, -1) => (canvas.cell_size as f32 / 2.0, canvas.cell_size as f32 / 2.0),
+            Anchor(i, j) => {
+                let x = (i * canvas.cell_size as i32) as f32;
+                let y = (j * canvas.cell_size as i32) as f32;
+                (x, y)
+            }
         }
     }
 
-    fn y(&self) -> f32 {
+    fn center() -> Self {
+        Anchor(-1, -1)
+    }
+}
+
+impl Coordinates for CenterAnchor {
+    fn coords(&self, canvas: &Canvas) -> (f32, f32) {
         match self {
-            CenterAnchor::TopLeft | CenterAnchor::TopRight => 25.0,
-            CenterAnchor::BottomLeft | CenterAnchor::BottomRight => 75.0,
-            CenterAnchor::Center => 50.0,
+            CenterAnchor(-1, -1) => ((canvas.cell_size / 2) as f32, (canvas.cell_size / 2) as f32),
+            CenterAnchor(i, j) => {
+                let x = *i as f32 * canvas.cell_size as f32 + canvas.cell_size as f32 / 2.0;
+                let y = *j as f32 * canvas.cell_size as f32 + canvas.cell_size as f32 / 2.0;
+                (x, y)
+            }
         }
+    }
+
+    fn center() -> Self {
+        CenterAnchor(-1, -1)
     }
 }
 
@@ -408,6 +472,22 @@ struct ColorMapping {
 }
 
 impl ColorMapping {
+    fn default() -> Self {
+        ColorMapping {
+            black: "black".to_string(),
+            white: "white".to_string(),
+            red: "red".to_string(),
+            green: "green".to_string(),
+            blue: "blue".to_string(),
+            yellow: "yellow".to_string(),
+            orange: "orange".to_string(),
+            purple: "purple".to_string(),
+            brown: "brown".to_string(),
+            pink: "pink".to_string(),
+            gray: "gray".to_string(),
+            cyan: "cyan".to_string(),
+        }
+    }
     fn from_json_file(path: &str) -> ColorMapping {
         let file = File::open(path).unwrap();
         let reader = BufReader::new(file);
@@ -449,17 +529,21 @@ impl Color {
 }
 
 impl Shape {
-    fn render(self, colormap: ColorMapping) -> String {
-        let default_color = Color::Black.to_string(&colormap);
-        let background_color = random_color();
+    fn render(self, canvas: &Canvas) -> String {
+        let canvas_width =
+            canvas.cell_size * (canvas.grid_size.0 - 1) + 2 * canvas.canvas_outter_padding;
+        let canvas_height =
+            canvas.cell_size * (canvas.grid_size.1 - 1) + 2 * canvas.canvas_outter_padding;
+        let default_color = Color::Black.to_string(&canvas.colormap);
+        let background_color = canvas.random_color();
         eprintln!("render: background_color({:?})", background_color);
         let mut svg = svg::Document::new().add(
             svg::node::element::Rectangle::new()
-                .set("x", -10)
-                .set("y", -10)
-                .set("width", 130)
-                .set("height", 130)
-                .set("fill", background_color.to_string(&colormap)),
+                .set("x", -(canvas.canvas_outter_padding as i32))
+                .set("y", -(canvas.canvas_outter_padding as i32))
+                .set("width", canvas_width)
+                .set("height", canvas_height)
+                .set("fill", background_color.to_string(&canvas.colormap)),
         );
         for (object, maybe_fill) in self.objects {
             let mut group = svg::node::element::Group::new();
@@ -467,11 +551,11 @@ impl Shape {
                 Object::Polygon(start, lines) => {
                     eprintln!("render: polygon({:?}, {:?})", start, lines);
                     let mut path = svg::node::element::path::Data::new();
-                    path = path.move_to((start.x(), start.y()));
+                    path = path.move_to(start.coords(&canvas));
                     for line in lines {
                         path = match line {
                             Line::Line(end) | Line::InwardCurve(end) | Line::OutwardCurve(end) => {
-                                path.line_to((end.x(), end.y()))
+                                path.line_to(end.coords(&canvas))
                             }
                         };
                     }
@@ -483,11 +567,11 @@ impl Shape {
                             match maybe_fill {
                                 // TODO
                                 Some(Fill::Solid(color)) => {
-                                    format!("fill: {};", color.to_string(&colormap))
+                                    format!("fill: {};", color.to_string(&canvas.colormap))
                                 }
                                 _ => format!(
-                                    "fill: none; stroke: {}; stroke-width: 0.5px;",
-                                    default_color
+                                    "fill: none; stroke: {}; stroke-width: {}px;",
+                                    default_color, canvas.empty_shape_stroke_width
                                 ),
                             },
                         );
@@ -496,10 +580,10 @@ impl Shape {
                     eprintln!("render: line({:?}, {:?})", start, end);
                     group = group.add(
                         svg::node::element::Line::new()
-                            .set("x1", start.x())
-                            .set("y1", start.y())
-                            .set("x2", end.x())
-                            .set("y2", end.y())
+                            .set("x1", start.coords(&canvas).0)
+                            .set("y1", start.coords(&canvas).1)
+                            .set("x2", end.coords(&canvas).0)
+                            .set("y2", end.coords(&canvas).1)
                             .set(
                                 "style",
                                 match maybe_fill {
@@ -507,7 +591,7 @@ impl Shape {
                                     Some(Fill::Solid(color)) => {
                                         format!(
                                             "fill: none; stroke: {}; stroke-width: 2px;",
-                                            color.to_string(&colormap)
+                                            color.to_string(&canvas.colormap)
                                         )
                                     }
                                     _ => format!(
@@ -527,16 +611,19 @@ impl Shape {
                         false
                     };
 
-                    let midpoint = ((start.x() + end.x()) / 2.0, (start.y() + end.y()) / 2.0);
-                    let start_from_midpoint = (start.x() - midpoint.0, start.y() - midpoint.1);
-                    let end_from_midpoint = (end.x() - midpoint.0, end.y() - midpoint.1);
+                    let (start_x, start_y) = start.coords(&canvas);
+                    let (end_x, end_y) = end.coords(&canvas);
+
+                    let midpoint = ((start_x + end_x) / 2.0, (start_y + end_y) / 2.0);
+                    let start_from_midpoint = (start_x - midpoint.0, start_y - midpoint.1);
+                    let end_from_midpoint = (end_x - midpoint.0, end_y - midpoint.1);
                     eprintln!("        midpoint: {:?}", midpoint);
                     eprintln!(
                         "        from midpoint: {:?} -> {:?}",
                         start_from_midpoint, end_from_midpoint
                     );
                     let control = {
-                        let relative = (end.x() - start.x(), end.y() - start.y());
+                        let relative = (end_x - start_x, end_y - start_y);
                         eprintln!("        relative: {:?}", relative);
                         // diagonal line is going like this: \
                         if start_from_midpoint.0 * start_from_midpoint.1 > 0.0
@@ -571,7 +658,7 @@ impl Shape {
                                 )
                             }
                         // line is horizontal
-                        } else if start.y() == end.y() {
+                        } else if start_y == end_y {
                             eprintln!("        horizontal");
                             (
                                 midpoint.0,
@@ -579,7 +666,7 @@ impl Shape {
                                     + (if inward { -1.0 } else { 1.0 }) * relative.0.abs() / 2.0,
                             )
                         // line is vertical
-                        } else if start.x() == end.x() {
+                        } else if start_x == end_x {
                             eprintln!("        vertical");
                             (
                                 midpoint.0
@@ -596,8 +683,8 @@ impl Shape {
                             .set(
                                 "d",
                                 svg::node::element::path::Data::new()
-                                    .move_to((start.x(), start.y()))
-                                    .quadratic_curve_to((control, (end.x(), end.y()))),
+                                    .move_to(start.coords(&canvas))
+                                    .quadratic_curve_to((control, end.coords(&canvas))),
                             )
                             .set(
                                 "style",
@@ -605,13 +692,14 @@ impl Shape {
                                     // TODO
                                     Some(Fill::Solid(color)) => {
                                         format!(
-                                            "fill: none; stroke: {}; stroke-width: 2px;",
-                                            color.to_string(&colormap)
+                                            "fill: none; stroke: {}; stroke-width: {}px;",
+                                            color.to_string(&canvas.colormap),
+                                            canvas.line_width
                                         )
                                     }
                                     _ => format!(
-                                        "fill: none; stroke: {}; stroke-width: 2px;",
-                                        default_color
+                                        "fill: none; stroke: {}; stroke-width: {}px;",
+                                        default_color, canvas.line_width
                                     ),
                                 },
                             ),
@@ -621,19 +709,19 @@ impl Shape {
                     eprintln!("render: small_circle({:?})", center);
                     group = group.add(
                         svg::node::element::Circle::new()
-                            .set("cx", center.x())
-                            .set("cy", center.y())
-                            .set("r", 5)
+                            .set("cx", center.coords(&canvas).0)
+                            .set("cy", center.coords(&canvas).1)
+                            .set("r", canvas.small_circle_radius)
                             .set(
                                 "style",
                                 match maybe_fill {
                                     // TODO
                                     Some(Fill::Solid(color)) => {
-                                        format!("fill: {};", color.to_string(&colormap))
+                                        format!("fill: {};", color.to_string(&canvas.colormap))
                                     }
                                     _ => format!(
-                                        "fill: none; stroke: {}; stroke-width: 0.5px;",
-                                        default_color
+                                        "fill: none; stroke: {}; stroke-width: {}px;",
+                                        default_color, canvas.empty_shape_stroke_width
                                     ),
                                 },
                             ),
@@ -643,19 +731,19 @@ impl Shape {
                     eprintln!("render: dot({:?})", center);
                     group = group.add(
                         svg::node::element::Circle::new()
-                            .set("cx", center.x())
-                            .set("cy", center.y())
-                            .set("r", 2)
+                            .set("cx", center.coords(&canvas).0)
+                            .set("cy", center.coords(&canvas).1)
+                            .set("r", canvas.dot_radius)
                             .set(
                                 "style",
                                 match maybe_fill {
                                     // TODO
                                     Some(Fill::Solid(color)) => {
-                                        format!("fill: {};", color.to_string(&colormap))
+                                        format!("fill: {};", color.to_string(&canvas.colormap))
                                     }
                                     _ => format!(
-                                        "fill: none; stroke: {}; stroke-width: 0.5px;",
-                                        default_color
+                                        "fill: none; stroke: {}; stroke-width: {}px;",
+                                        default_color, canvas.empty_shape_stroke_width
                                     ),
                                 },
                             ),
@@ -665,15 +753,15 @@ impl Shape {
                     eprintln!("render: big_circle({:?})", center);
                     group = group.add(
                         svg::node::element::Circle::new()
-                            .set("cx", center.x())
-                            .set("cy", center.y())
-                            .set("r", 25)
+                            .set("cx", center.coords(&canvas).0)
+                            .set("cy", center.coords(&canvas).1)
+                            .set("r", canvas.cell_size / 2)
                             .set(
                                 "style",
                                 match maybe_fill {
                                     // TODO
                                     Some(Fill::Solid(color)) => {
-                                        format!("fill: {};", color.to_string(&colormap))
+                                        format!("fill: {};", color.to_string(&canvas.colormap))
                                     }
                                     _ => format!(
                                         "fill: none; stroke: {}; stroke-width: 0.5px;",
@@ -688,28 +776,42 @@ impl Shape {
             svg = svg.add(group);
         }
         // render a dotted grid
-        if false {
-            for x in vec![0, 25, 50, 75, 100] {
-                for y in vec![0, 25, 50, 75, 100] {
+        if canvas.render_grid {
+            for i in 0..canvas.grid_size.0 as i32 {
+                for j in 0..canvas.grid_size.1 as i32 {
+                    let (x, y) = Anchor(i, j).coords(&canvas);
                     svg = svg.add(
                         svg::node::element::Circle::new()
                             .set("cx", x)
                             .set("cy", y)
-                            .set("r", 0.5)
-                            .set("fill", "gray"),
+                            .set("r", canvas.line_width / 4.0)
+                            .set("fill", "#000"),
                     );
+
+                    // if i < canvas.grid_size.0 as i32 - 1 && j < canvas.grid_size.1 as i32 - 1 {
+                    //     let (x, y) = CenterAnchor(i, j).coords(&canvas);
+                    //     svg = svg.add(
+                    //         svg::node::element::Circle::new()
+                    //             .set("cx", x)
+                    //             .set("cy", y)
+                    //             .set("r", canvas.line_width / 4.0)
+                    //             .set("fill", "#fff"),
+                    //     );
+                    // }
                 }
             }
         }
-        svg.set("viewBox", "-10 -10 120 120").to_string()
-    }
-}
-
-impl Object {
-    fn closed(self) -> bool {
-        matches!(
-            self,
-            Object::Polygon(_, _) | Object::BigCircle(_) | Object::SmallCircle(_) | Object::Dot(_)
+        svg.set(
+            "viewBox",
+            format!(
+                "{0} {0} {1} {2}",
+                -(canvas.canvas_outter_padding as i32),
+                canvas_width,
+                canvas_height
+            ),
         )
+        .set("width", canvas_width)
+        .set("height", canvas_height)
+        .to_string()
     }
 }

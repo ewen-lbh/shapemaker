@@ -1,4 +1,4 @@
-# shapemaker
+![shapemaker](title.png)
 
 An experiment into the generation of 2D flat design abstract artwork using limited shape and color combinations, arranged in a 8-point grid.
 
