@@ -1,5 +1,7 @@
+use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime};
 use rand::distributions::uniform::SampleRange;
 use serde_json;
+use std::fmt::Formatter;
 use std::fs::File;
 use std::io::BufReader;
 use std::ops::Range;
@@ -58,6 +60,279 @@ struct Args {
     flag_render_grid: bool,
     flag_objects_count: Option<String>,
     flag_polygon_vertices: Option<String>,
+}
+
+type RenderFunction<C> = dyn Fn(&mut Canvas, &mut Context<C>);
+type CommandAction<C> = dyn Fn([&str], &mut Canvas, &mut Context<C>);
+
+/// Arguments: canvas, context, previous rendered beat
+type HookCondition<C> = dyn Fn(&mut Canvas, &mut Context<C>, usize) -> bool;
+
+#[derive(Debug)]
+struct Video<C> {
+    fps: usize,
+    initial_canvas: Canvas,
+    hooks: Vec<Box<Hook<C>>>,
+    commands: Vec<Box<Command<C>>>,
+    frames: Vec<Canvas>,
+}
+
+struct Hook<C> {
+    when: Box<HookCondition<C>>,
+    render_function: Box<RenderFunction<C>>,
+}
+
+impl<C> std::fmt::Debug for Hook<C> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Hook")
+            .field("when", &"Box<HookCondition>")
+            .field("render_function", &"Box<RenderFunction>")
+            .finish()
+    }
+}
+
+#[derive(Debug)]
+struct AudioTrack {
+    amplitude: Vec<f32>,
+}
+
+#[derive(Debug)]
+struct AudioTrackAtInstant {
+    amplitude: f32,
+}
+
+struct Command<C> {
+    name: String,
+    arguments: Vec<String>,
+    action: Box<CommandAction<C>>,
+}
+
+impl<C> std::fmt::Debug for Command<C> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Command")
+            .field("name", &self.name)
+            .field("arguments", &self.arguments)
+            .field("action", &"Box<CommandAction>")
+            .finish()
+    }
+}
+
+#[derive(Debug)]
+struct Context<AdditionalContext = ()> {
+    frame: usize,
+    beat: usize,
+    timestamp: String,
+    ms: usize,
+    bpm: usize,
+    stems: HashMap<String, AudioTrack>,
+    markers: HashMap<usize, String>, // milliseconds -> marker text
+    u: AdditionalContext,
+}
+
+impl<C> Context<C> {
+    fn stem(&self, name: &str) -> AudioTrackAtInstant {
+        AudioTrackAtInstant {
+            amplitude: self.stems[name].amplitude[self.ms],
+        }
+    }
+
+    fn marker(&self) -> String {
+        self.markers
+            .get(&self.ms)
+            .unwrap_or(&"".to_string())
+            .to_string()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct AudioSyncPaths {
+    stems: &'static str,
+    landmarks: &'static str,
+}
+
+impl<AdditionalContext: Default> Video<AdditionalContext> {
+    fn new() -> Self {
+        Self {
+            fps: 30,
+            initial_canvas: Canvas::new(),
+            hooks: vec![],
+            commands: vec![],
+            frames: vec![],
+        }
+    }
+
+    fn set_fps(self, fps: usize) -> Self {
+        Self { fps, ..self }
+    }
+
+    fn set_initial_canvas(self, canvas: Canvas) -> Self {
+        Self {
+            initial_canvas: canvas,
+            ..self
+        }
+    }
+
+    fn sync_to(self, audio: AudioSyncPaths) -> Self {
+        // TODO load stems and landmarks
+        todo!()
+    }
+
+    fn on(
+        self,
+        marker_text: &'static str,
+        render_function: &'static RenderFunction<AdditionalContext>,
+    ) -> Self {
+        let hook = Hook {
+            when: Box::new(move |_, context, _| context.marker() == marker_text),
+            render_function: Box::new(render_function),
+        };
+        let mut hooks = self.hooks;
+        hooks.push(Box::new(hook));
+        Self { hooks, ..self }
+    }
+
+    fn on_beat(self, render_function: &'static RenderFunction<AdditionalContext>) -> Self {
+        let hook = Hook {
+            when: Box::new(move |_, context, previous_rendered_beat| {
+                previous_rendered_beat != context.beat
+            }),
+            render_function: Box::new(render_function),
+        };
+        let mut hooks = self.hooks;
+        hooks.push(Box::new(hook));
+        Self { hooks, ..self }
+    }
+
+    fn on_tick(self, render_function: &'static RenderFunction<AdditionalContext>) -> Self {
+        let hook = Hook {
+            when: Box::new(move |_, _, _| true),
+            render_function: Box::new(render_function),
+        };
+        let mut hooks = self.hooks;
+        hooks.push(Box::new(hook));
+        Self { hooks, ..self }
+    }
+
+    fn on_timestamp(
+        self,
+        timestamp: &'static str,
+        render_function: &'static RenderFunction<AdditionalContext>,
+    ) -> Self {
+        let hook = Hook {
+            when: Box::new(move |_, context, _| {
+                let mut precision = "";
+                let mut criteria_time = NaiveDateTime::default();
+                if let Ok(criteria_time_parsed) =
+                    NaiveDateTime::parse_from_str(timestamp, "%H:%M:%S%.3f")
+                {
+                    precision = "milliseconds";
+                    criteria_time = criteria_time_parsed;
+                } else if let Ok(criteria_time_parsed) =
+                    NaiveDateTime::parse_from_str(timestamp, "%M:%S%.3f")
+                {
+                    precision = "milliseconds";
+                    criteria_time = criteria_time_parsed;
+                } else if let Ok(criteria_time_parsed) =
+                    NaiveDateTime::parse_from_str(timestamp, "%S%.3f")
+                {
+                    precision = "milliseconds";
+                    criteria_time = criteria_time_parsed;
+                } else if let Ok(criteria_time_parsed) =
+                    NaiveDateTime::parse_from_str(timestamp, "%S")
+                {
+                    precision = "seconds";
+                    criteria_time = criteria_time_parsed;
+                } else if let Ok(criteria_time_parsed) =
+                    NaiveDateTime::parse_from_str(timestamp, "%M:%S")
+                {
+                    precision = "seconds";
+                    criteria_time = criteria_time_parsed;
+                } else if let Ok(criteria_time_parsed) =
+                    NaiveDateTime::parse_from_str(timestamp, "%H:%M:%S")
+                {
+                    precision = "seconds";
+                    criteria_time = criteria_time_parsed;
+                } else {
+                    panic!("Unhandled timestamp format: {}", timestamp);
+                }
+                match precision {
+                    "milliseconds" => {
+                        let current_time: NaiveDateTime =
+                            NaiveDateTime::parse_from_str(timestamp, "%H:%M:%S%.3f").unwrap();
+                        current_time == criteria_time
+                    }
+                    "seconds" => {
+                        let current_time: NaiveDateTime =
+                            NaiveDateTime::parse_from_str(timestamp, "%H:%M:%S").unwrap();
+                        current_time == criteria_time
+                    }
+                    _ => panic!("Unknown precision"),
+                }
+            }),
+            render_function: Box::new(render_function),
+        };
+        let mut hooks = self.hooks;
+        hooks.push(Box::new(hook));
+        Self { hooks, ..self }
+    }
+
+    fn command(
+        self,
+        command_name: &'static str,
+        arguments: Vec<&str>,
+        action: &'static CommandAction<AdditionalContext>,
+    ) -> Self {
+        let mut commands = self.commands;
+        commands.push(Box::new(Command {
+            name: command_name.to_string(),
+            arguments: arguments.iter().map(|s| s.to_string()).collect(),
+            action: Box::new(action),
+        }));
+        Self { commands, ..self }
+    }
+
+    fn render_to(self, output_file: &'static str) {
+        let mut context = Context {
+            frame: 0,
+            beat: 0,
+            timestamp: "00:00:00.000".to_string(),
+            ms: 0,
+            bpm: 120,
+            stems: HashMap::new(),
+            markers: HashMap::new(),
+            u: AdditionalContext::default(),
+        };
+
+        let canvas = self.initial_canvas;
+        let mut previous_rendered_beat = 0;
+        let mut last_marker_text = "";
+
+        let audio_frames_per_video_frame: usize = todo!();
+        let total_video_frames = self.fps /* TODO todo!("max duration audio stem") */;
+
+        for _ in 0..total_video_frames {
+            for hook in &self.hooks {
+                if (hook.when)(&mut canvas, &mut context, previous_rendered_beat) {
+                    (hook.render_function)(&mut canvas, &mut context);
+                }
+            }
+
+            self.frames.push(canvas.clone());
+
+            previous_rendered_beat = context.beat;
+            context.frame += 1;
+            context.ms += (1.0 / (self.fps as f32) * 1000.0) as usize;
+            context.timestamp = format!(
+                "{}",
+                NaiveDateTime::from_timestamp_millis(context.ms as i64)
+                    .unwrap()
+                    .format("%H:%M:%S%.3f")
+            );
+            if (context.ms * 1000) % context.bpm == 0 {
+                context.beat += 1;
+            }
+        }
+    }
 }
 
 fn main() {
@@ -184,12 +459,31 @@ fn main() {
         canvas.polygon_vertices_range = min..(max + 1);
     }
 
-    let shape = canvas.random_shape("test");
+    Video::new()
+        .sync_to(AudioSyncPaths {
+            stems: "audiosync/stems/",
+            landmarks: "audiosync/landmarks.txt",
+        })
+        .set_fps(60)
+        .set_initial_canvas(canvas)
+        .on_beat(&|canvas: &mut Canvas, context: &mut Context<()>| {
+            canvas.shape = canvas.random_shape("test");
+            println!("{}", context.timestamp);
+        })
+        .on_timestamp("02:04", &|canvas: &mut Canvas, _| {
+            canvas.shape.objects.push((
+                Object::RawSVG(Box::new(svg::node::Text::new("by ewen-lbh"))),
+                None,
+            ))
+        })
+        .render_to("audiosync/out.mp4");
 
-    if let Err(e) = std::fs::write(args.arg_file, shape.render(&canvas)) {
-        eprintln!("Error: {:?}", e);
-        std::process::exit(1);
-    }
+    // let shape = canvas.random_shape("test");
+
+    // if let Err(e) = std::fs::write(args.arg_file, shape.render(&canvas)) {
+    //     eprintln!("Error: {:?}", e);
+    //     std::process::exit(1);
+    // }
 }
 
 #[derive(Debug, Clone)]
@@ -205,9 +499,13 @@ struct Canvas {
     dot_radius: f32,
     render_grid: bool,
     colormap: ColorMapping,
+    shape: Shape,
 }
 
 impl Canvas {
+    fn new() -> Self {
+        Self::default_settings()
+    }
     fn default_settings() -> Self {
         Self {
             grid_size: (3, 3),
@@ -221,6 +519,7 @@ impl Canvas {
             dot_radius: 2.0,
             render_grid: false,
             colormap: ColorMapping::default(),
+            shape: Shape { objects: vec![] },
         }
     }
     fn random_shape(&self, name: &'static str) -> Shape {
@@ -237,7 +536,7 @@ impl Canvas {
                 },
             ));
         }
-        Shape { name, objects }
+        Shape { objects }
     }
 
     fn random_object(&self) -> Object {
@@ -363,13 +662,12 @@ impl Canvas {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Shape {
-    name: &'static str,
     objects: Vec<(Object, Option<Fill>)>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Object {
     Polygon(Anchor, Vec<Line>),
     Line(Anchor, Anchor),
@@ -378,6 +676,7 @@ enum Object {
     SmallCircle(Anchor),
     Dot(Anchor),
     BigCircle(CenterAnchor),
+    RawSVG(Box<dyn svg::Node>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -548,6 +847,10 @@ impl Shape {
         for (object, maybe_fill) in self.objects {
             let mut group = svg::node::element::Group::new();
             match object {
+                Object::RawSVG(svg) => {
+                    eprintln!("render: raw_svg");
+                    group = group.add(svg);
+                }
                 Object::Polygon(start, lines) => {
                     eprintln!("render: polygon({:?}, {:?})", start, lines);
                     let mut path = svg::node::element::path::Data::new();
