@@ -2,6 +2,8 @@
 
 An experiment into the generation of 2D flat design abstract artwork using limited shape and color combinations, arranged in a 8-point grid.
 
+[![wakatime](https://wakatime.com/badge/user/0054cecb-dd63-44eb-9e94-ed53ccb8506a/project/20615e77-936e-4784-83f8-ae65d6b44fd5.svg)](https://wakatime.com/badge/user/0054cecb-dd63-44eb-9e94-ed53ccb8506a/project/20615e77-936e-4784-83f8-ae65d6b44fd5)
+
 ## Gallery
 
 <div style="display: grid; grid-template-columns: repeat(3, 1fr); grid-gap: 1rem;">
