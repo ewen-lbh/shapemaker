@@ -75,6 +75,8 @@ struct Video<C> {
     hooks: Vec<Box<Hook<C>>>,
     commands: Vec<Box<Command<C>>>,
     frames: Vec<Canvas>,
+    frames_output_directory: &'static str,
+    audio_paths: AudioSyncPaths,
 }
 
 struct Hook<C> {
@@ -144,10 +146,11 @@ impl<C> Context<C> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 struct AudioSyncPaths {
     stems: &'static str,
     landmarks: &'static str,
+    complete: &'static str,
 }
 
 impl<AdditionalContext: Default> Video<AdditionalContext> {
@@ -158,7 +161,39 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             hooks: vec![],
             commands: vec![],
             frames: vec![],
+            audio_paths: AudioSyncPaths::default(),
+            frames_output_directory: "frames/",
         }
+    }
+
+    fn build_video(&self, render_to: &'static str) -> Result<(), String> {
+        let result = std::process::Command::new("ffmpeg")
+            .arg(format!("-framerate {}", self.fps))
+            .arg(format!("-i '{}'", self.frames_output_directory))
+            .arg(format!("-i '{}'", self.audio_paths.complete))
+            .args([
+                "-pattern_type glob",
+                "-c:a",
+                "copy",
+                "-shortest",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+            ])
+            .arg(render_to)
+            .output();
+
+        match result {
+            Err(e) => Err(format!("Failed to execute ffmpeg: {}", e)),
+            _ => Ok(()),
+        }
+    }
+
+    fn build_frame(&self, canvas: &Canvas) {
+        std::process::Command::new("convert")
+        .arg("/dev/stdin")
+        .arg(format!("{}/{}", self.frames_output_directory, self.))
     }
 
     fn set_fps(self, fps: usize) -> Self {
@@ -174,7 +209,10 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
 
     fn sync_to(self, audio: AudioSyncPaths) -> Self {
         // TODO load stems and landmarks
-        todo!()
+        Self {
+            audio_paths: audio,
+            ..self
+        }
     }
 
     fn on(
@@ -331,6 +369,8 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             if (context.ms * 1000) % context.bpm == 0 {
                 context.beat += 1;
             }
+
+
         }
     }
 }
@@ -463,6 +503,7 @@ fn main() {
         .sync_to(AudioSyncPaths {
             stems: "audiosync/stems/",
             landmarks: "audiosync/landmarks.txt",
+            complete: "audiosync/full.flac",
         })
         .set_fps(60)
         .set_initial_canvas(canvas)
@@ -470,11 +511,17 @@ fn main() {
             canvas.shape = canvas.random_shape("test");
             println!("{}", context.timestamp);
         })
-        .on_timestamp("02:04", &|canvas: &mut Canvas, _| {
-            canvas.shape.objects.push((
-                Object::RawSVG(Box::new(svg::node::Text::new("by ewen-lbh"))),
-                None,
-            ))
+        .on("start credits", &|canvas: &mut Canvas, _| {
+            canvas.shape.objects.insert(
+                "credits text".to_string(),
+                (
+                    Object::RawSVG(Box::new(svg::node::Text::new("by ewen-lbh"))),
+                    None,
+                ),
+            );
+        })
+        .on("end credits", &|canvas: &mut Canvas, _| {
+            canvas.shape.objects.remove("credits text");
         })
         .render_to("audiosync/out.mp4");
 
@@ -664,7 +711,7 @@ impl Canvas {
 
 #[derive(Debug, Clone)]
 struct Shape {
-    objects: Vec<(Object, Option<Fill>)>,
+    objects: HashMap<String, (Object, Option<Fill>)>,
 }
 
 #[derive(Debug, Clone)]
