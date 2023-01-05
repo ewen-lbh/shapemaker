@@ -1,12 +1,10 @@
-use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime};
-use rand::distributions::uniform::SampleRange;
+use chrono::NaiveDateTime;
 use serde_json;
+use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, Write};
 use std::ops::Range;
-use std::sync::Arc;
-use std::{borrow::Borrow, collections::HashMap};
 
 use docopt::Docopt;
 use rand::Rng;
@@ -77,6 +75,9 @@ struct Video<C> {
     frames: Vec<Canvas>,
     frames_output_directory: &'static str,
     audio_paths: AudioSyncPaths,
+    bpm: usize,
+    markers: HashMap<usize, String>,
+    stems: HashMap<String, Stem>,
 }
 
 struct Hook<C> {
@@ -94,13 +95,16 @@ impl<C> std::fmt::Debug for Hook<C> {
 }
 
 #[derive(Debug)]
-struct AudioTrack {
-    amplitude: Vec<f32>,
+struct Stem {
+    amplitude_db: Vec<f32>,
+    /// in milliseconds
+    duration_ms: usize,
 }
 
 #[derive(Debug)]
-struct AudioTrackAtInstant {
+struct StemAtInstant {
     amplitude: f32,
+    duration: usize,
 }
 
 struct Command<C> {
@@ -120,21 +124,22 @@ impl<C> std::fmt::Debug for Command<C> {
 }
 
 #[derive(Debug)]
-struct Context<AdditionalContext = ()> {
+struct Context<'a, AdditionalContext = ()> {
     frame: usize,
     beat: usize,
     timestamp: String,
     ms: usize,
     bpm: usize,
-    stems: HashMap<String, AudioTrack>,
-    markers: HashMap<usize, String>, // milliseconds -> marker text
+    stems: &'a HashMap<String, Stem>,
+    markers: &'a HashMap<usize, String>, // milliseconds -> marker text
     u: AdditionalContext,
 }
 
-impl<C> Context<C> {
-    fn stem(&self, name: &str) -> AudioTrackAtInstant {
-        AudioTrackAtInstant {
-            amplitude: self.stems[name].amplitude[self.ms],
+impl<'a, C> Context<'a, C> {
+    fn stem(&self, name: &str) -> StemAtInstant {
+        StemAtInstant {
+            amplitude: self.stems[name].amplitude_db[self.ms],
+            duration: self.stems[name].duration_ms,
         }
     }
 
@@ -151,6 +156,7 @@ struct AudioSyncPaths {
     stems: &'static str,
     landmarks: &'static str,
     complete: &'static str,
+    bpm: &'static str,
 }
 
 impl<AdditionalContext: Default> Video<AdditionalContext> {
@@ -162,7 +168,10 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             commands: vec![],
             frames: vec![],
             audio_paths: AudioSyncPaths::default(),
-            frames_output_directory: "frames/",
+            frames_output_directory: "audiosync/frames/",
+            bpm: 0,
+            markers: HashMap::new(),
+            stems: HashMap::new(),
         }
     }
 
@@ -190,10 +199,22 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         }
     }
 
-    fn build_frame(&self, canvas: &Canvas) {
-        std::process::Command::new("convert")
-        .arg("/dev/stdin")
-        .arg(format!("{}/{}", self.frames_output_directory, self.))
+    fn build_frame(&self, canvas: &mut Canvas, frame_no: usize) -> Result<(), String> {
+        let mut spawned = std::process::Command::new("convert")
+            .arg("-")
+            .arg(format!("{}/{}.png", self.frames_output_directory, frame_no))
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let stdin = spawned.stdin.as_mut().unwrap();
+        stdin.write_all(canvas.render().as_bytes()).unwrap();
+        drop(stdin);
+
+        match spawned.wait_with_output() {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Failed to execute convert: {}", e)),
+        }
     }
 
     fn set_fps(self, fps: usize) -> Self {
@@ -208,9 +229,83 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
     }
 
     fn sync_to(self, audio: AudioSyncPaths) -> Self {
-        // TODO load stems and landmarks
+        // Read BPM from file
+        let bpm = std::fs::read_to_string(audio.bpm)
+            .map_err(|e| format!("Failed to read BPM file: {}", e))
+            .and_then(|bpm| {
+                bpm.parse::<usize>()
+                    .map_err(|e| format!("Failed to parse BPM file: {}", e))
+            })
+            .unwrap();
+
+        // Read landmakrs from JSON file
+        let markers = std::fs::read_to_string(audio.landmarks)
+            .map_err(|e| format!("Failed to read landmarks file: {}", e))
+            .and_then(|landmarks| {
+                match serde_json::from_str::<HashMap<String, String>>(&landmarks)
+                    .map_err(|e| format!("Failed to parse landmarks file: {}", e))
+                {
+                    Ok(unparsed_keys) => {
+                        let mut parsed_keys: HashMap<usize, String> = HashMap::new();
+                        for (key, value) in unparsed_keys {
+                            parsed_keys.insert(key.parse::<usize>().unwrap(), value);
+                        }
+                        Ok(parsed_keys)
+                    }
+                    Err(e) => Err(e),
+                }
+            })
+            .unwrap();
+
+        // Read all WAV stem files: get their duration and amplitude per millisecond
+        let mut stems: HashMap<String, Stem> = HashMap::new();
+        for entry in std::fs::read_dir(audio.stems)
+            .map_err(|e| format!("Failed to read stems directory: {}", e))
+            .unwrap()
+            .filter(|e| match e {
+                Ok(e) => e.path().extension().unwrap_or_default() == "wav",
+                Err(_) => false,
+            })
+        {
+            println!(
+                "Reading stem file {}",
+                entry.as_ref().unwrap().path().display()
+            );
+            let entry = entry.unwrap();
+            let path = entry.path();
+            let stem_name = path.file_stem().unwrap().to_str().unwrap();
+            let mut reader = hound::WavReader::open(path.clone())
+                .map_err(|e| format!("Failed to read stem file: {}", e))
+                .unwrap();
+            let spec = reader.spec();
+            let samples_per_millisecond =
+                (spec.sample_rate as usize / 1000 * spec.channels as usize);
+            let mut amplitude_db: Vec<f32> = vec![];
+            let mut current_amplitude_mean: f32 = 0.0;
+            for (i, sample) in reader.samples::<i16>().enumerate() {
+                let sample = sample.unwrap();
+                if i % samples_per_millisecond == 0 {
+                    amplitude_db.push(current_amplitude_mean);
+                    current_amplitude_mean = 0.0;
+                } else {
+                    current_amplitude_mean += (20.0 * (sample as f32).log10()).abs();
+                }
+            }
+            stems.insert(
+                stem_name.to_string(),
+                Stem {
+                    amplitude_db,
+                    duration_ms: (reader.duration() as f32 / spec.sample_rate as f32 * 1000.0)
+                        as usize,
+                },
+            );
+        }
+
         Self {
             audio_paths: audio,
+            markers,
+            bpm,
+            stems,
             ..self
         }
     }
@@ -329,24 +424,30 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         Self { commands, ..self }
     }
 
-    fn render_to(self, output_file: &'static str) {
+    fn render_to(&mut self, output_file: &'static str) {
         let mut context = Context {
             frame: 0,
             beat: 0,
             timestamp: "00:00:00.000".to_string(),
             ms: 0,
             bpm: 120,
-            stems: HashMap::new(),
-            markers: HashMap::new(),
+            stems: &self.stems,
+            markers: &self.markers,
             u: AdditionalContext::default(),
         };
 
-        let canvas = self.initial_canvas;
+        let mut canvas = self.initial_canvas.clone();
         let mut previous_rendered_beat = 0;
         let mut last_marker_text = "";
 
-        let audio_frames_per_video_frame: usize = todo!();
-        let total_video_frames = self.fps /* TODO todo!("max duration audio stem") */;
+        let audio_frames_per_video_frame: usize = 44100 / self.fps;
+        let total_video_frames = self.fps
+            * context
+                .stems
+                .values()
+                .map(|stem| stem.duration_ms / 1000)
+                .max()
+                .unwrap();
 
         for _ in 0..total_video_frames {
             for hook in &self.hooks {
@@ -355,9 +456,9 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 }
             }
 
-            self.frames.push(canvas.clone());
+            self.build_frame(&mut canvas, context.frame);
 
-            previous_rendered_beat = context.beat;
+            previous_rendered_beat = context.beat.clone();
             context.frame += 1;
             context.ms += (1.0 / (self.fps as f32) * 1000.0) as usize;
             context.timestamp = format!(
@@ -366,12 +467,10 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                     .unwrap()
                     .format("%H:%M:%S%.3f")
             );
-            if (context.ms * 1000) % context.bpm == 0 {
-                context.beat += 1;
-            }
-
-
+            context.beat = (context.bpm as f32 * context.ms as f32 / 1000.0 / 60.0) as usize;
         }
+
+        self.build_video(output_file);
     }
 }
 
@@ -502,17 +601,23 @@ fn main() {
     Video::new()
         .sync_to(AudioSyncPaths {
             stems: "audiosync/stems/",
-            landmarks: "audiosync/landmarks.txt",
+            landmarks: "audiosync/landmarks.json",
             complete: "audiosync/full.flac",
+            bpm: "audiosync/bpm.txt",
         })
-        .set_fps(60)
+        .set_fps(15)
         .set_initial_canvas(canvas)
         .on_beat(&|canvas: &mut Canvas, context: &mut Context<()>| {
-            canvas.shape = canvas.random_shape("test");
-            println!("{}", context.timestamp);
+            canvas.set_shape(canvas.random_shape("test"));
+        })
+        .on_tick(&|_, context: &mut Context<()>| {
+            println!(
+                "frame {} @ {} beat {}",
+                context.frame, context.timestamp, context.beat
+            );
         })
         .on("start credits", &|canvas: &mut Canvas, _| {
-            canvas.shape.objects.insert(
+            canvas.add_object(
                 "credits text".to_string(),
                 (
                     Object::RawSVG(Box::new(svg::node::Text::new("by ewen-lbh"))),
@@ -521,7 +626,7 @@ fn main() {
             );
         })
         .on("end credits", &|canvas: &mut Canvas, _| {
-            canvas.shape.objects.remove("credits text");
+            canvas.remove_object("credits text");
         })
         .render_to("audiosync/out.mp4");
 
@@ -547,12 +652,32 @@ struct Canvas {
     render_grid: bool,
     colormap: ColorMapping,
     shape: Shape,
+    _render_cache: Option<String>,
 }
 
 impl Canvas {
     fn new() -> Self {
         Self::default_settings()
     }
+
+    fn set_shape(&mut self, shape: Shape) {
+        self.shape = shape;
+        println!("invalidating canvas render cache");
+        self._render_cache = None;
+    }
+
+    fn add_object(&mut self, name: String, object: (Object, Option<Fill>)) {
+        self.shape.objects.insert(name, object);
+        println!("invalidating canvas render cache");
+        self._render_cache = None;
+    }
+
+    fn remove_object(&mut self, name: &str) {
+        self.shape.objects.remove(name);
+        println!("invalidating canvas render cache");
+        self._render_cache = None;
+    }
+
     fn default_settings() -> Self {
         Self {
             grid_size: (3, 3),
@@ -566,22 +691,28 @@ impl Canvas {
             dot_radius: 2.0,
             render_grid: false,
             colormap: ColorMapping::default(),
-            shape: Shape { objects: vec![] },
+            shape: Shape {
+                objects: HashMap::new(),
+            },
+            _render_cache: None,
         }
     }
     fn random_shape(&self, name: &'static str) -> Shape {
-        let mut objects: Vec<(Object, Option<Fill>)> = vec![];
+        let mut objects: HashMap<String, (Object, Option<Fill>)> = HashMap::new();
         let number_of_objects = rand::thread_rng().gen_range(self.objects_count_range.clone());
-        for _ in 0..number_of_objects {
+        for i in 0..number_of_objects {
             let object = self.random_object();
-            objects.push((
-                object,
-                if rand::thread_rng().gen_bool(0.5) {
-                    Some(self.random_fill())
-                } else {
-                    None
-                },
-            ));
+            objects.insert(
+                format!("{}#{}", name, i),
+                (
+                    object,
+                    if rand::thread_rng().gen_bool(0.5) {
+                        Some(self.random_fill())
+                    } else {
+                        None
+                    },
+                ),
+            );
         }
         Shape { objects }
     }
@@ -874,38 +1005,40 @@ impl Color {
     }
 }
 
-impl Shape {
-    fn render(self, canvas: &Canvas) -> String {
-        let canvas_width =
-            canvas.cell_size * (canvas.grid_size.0 - 1) + 2 * canvas.canvas_outter_padding;
+impl Canvas {
+    fn render(&mut self) -> String {
+        if let Some(cached_svg_string) = &self._render_cache {
+            return cached_svg_string.clone();
+        }
+        let canvas_width = self.cell_size * (self.grid_size.0 - 1) + 2 * self.canvas_outter_padding;
         let canvas_height =
-            canvas.cell_size * (canvas.grid_size.1 - 1) + 2 * canvas.canvas_outter_padding;
-        let default_color = Color::Black.to_string(&canvas.colormap);
-        let background_color = canvas.random_color();
+            self.cell_size * (self.grid_size.1 - 1) + 2 * self.canvas_outter_padding;
+        let default_color = Color::Black.to_string(&self.colormap);
+        let background_color = self.random_color();
         eprintln!("render: background_color({:?})", background_color);
         let mut svg = svg::Document::new().add(
             svg::node::element::Rectangle::new()
-                .set("x", -(canvas.canvas_outter_padding as i32))
-                .set("y", -(canvas.canvas_outter_padding as i32))
+                .set("x", -(self.canvas_outter_padding as i32))
+                .set("y", -(self.canvas_outter_padding as i32))
                 .set("width", canvas_width)
                 .set("height", canvas_height)
-                .set("fill", background_color.to_string(&canvas.colormap)),
+                .set("fill", background_color.to_string(&self.colormap)),
         );
-        for (object, maybe_fill) in self.objects {
+        for (id, (object, maybe_fill)) in &self.shape.objects {
             let mut group = svg::node::element::Group::new();
             match object {
                 Object::RawSVG(svg) => {
-                    eprintln!("render: raw_svg");
-                    group = group.add(svg);
+                    eprintln!("render: raw_svg [{}]", id);
+                    group = group.add(svg.clone());
                 }
                 Object::Polygon(start, lines) => {
-                    eprintln!("render: polygon({:?}, {:?})", start, lines);
+                    eprintln!("render: polygon({:?}, {:?}) [{}]", start, lines, id);
                     let mut path = svg::node::element::path::Data::new();
-                    path = path.move_to(start.coords(&canvas));
+                    path = path.move_to(start.coords(&self));
                     for line in lines {
                         path = match line {
                             Line::Line(end) | Line::InwardCurve(end) | Line::OutwardCurve(end) => {
-                                path.line_to(end.coords(&canvas))
+                                path.line_to(end.coords(&self))
                             }
                         };
                     }
@@ -917,23 +1050,23 @@ impl Shape {
                             match maybe_fill {
                                 // TODO
                                 Some(Fill::Solid(color)) => {
-                                    format!("fill: {};", color.to_string(&canvas.colormap))
+                                    format!("fill: {};", color.to_string(&self.colormap))
                                 }
                                 _ => format!(
                                     "fill: none; stroke: {}; stroke-width: {}px;",
-                                    default_color, canvas.empty_shape_stroke_width
+                                    default_color, self.empty_shape_stroke_width
                                 ),
                             },
                         );
                 }
                 Object::Line(start, end) => {
-                    eprintln!("render: line({:?}, {:?})", start, end);
+                    eprintln!("render: line({:?}, {:?}) [{}]", start, end, id);
                     group = group.add(
                         svg::node::element::Line::new()
-                            .set("x1", start.coords(&canvas).0)
-                            .set("y1", start.coords(&canvas).1)
-                            .set("x2", end.coords(&canvas).0)
-                            .set("y2", end.coords(&canvas).1)
+                            .set("x1", start.coords(&self).0)
+                            .set("y1", start.coords(&self).1)
+                            .set("x2", end.coords(&self).0)
+                            .set("y2", end.coords(&self).1)
                             .set(
                                 "style",
                                 match maybe_fill {
@@ -941,7 +1074,7 @@ impl Shape {
                                     Some(Fill::Solid(color)) => {
                                         format!(
                                             "fill: none; stroke: {}; stroke-width: 2px;",
-                                            color.to_string(&canvas.colormap)
+                                            color.to_string(&self.colormap)
                                         )
                                     }
                                     _ => format!(
@@ -954,15 +1087,15 @@ impl Shape {
                 }
                 Object::CurveInward(start, end) | Object::CurveOutward(start, end) => {
                     let inward = if matches!(object, Object::CurveInward(_, _)) {
-                        eprintln!("render: curve_inward({:?}, {:?})", start, end);
+                        eprintln!("render: curve_inward({:?}, {:?}) [{}]", start, end, id);
                         true
                     } else {
-                        eprintln!("render: curve_outward({:?}, {:?})", start, end);
+                        eprintln!("render: curve_outward({:?}, {:?}) [{}]", start, end, id);
                         false
                     };
 
-                    let (start_x, start_y) = start.coords(&canvas);
-                    let (end_x, end_y) = end.coords(&canvas);
+                    let (start_x, start_y) = start.coords(&self);
+                    let (end_x, end_y) = end.coords(&self);
 
                     let midpoint = ((start_x + end_x) / 2.0, (start_y + end_y) / 2.0);
                     let start_from_midpoint = (start_x - midpoint.0, start_y - midpoint.1);
@@ -1033,8 +1166,8 @@ impl Shape {
                             .set(
                                 "d",
                                 svg::node::element::path::Data::new()
-                                    .move_to(start.coords(&canvas))
-                                    .quadratic_curve_to((control, end.coords(&canvas))),
+                                    .move_to(start.coords(&self))
+                                    .quadratic_curve_to((control, end.coords(&self))),
                             )
                             .set(
                                 "style",
@@ -1043,75 +1176,75 @@ impl Shape {
                                     Some(Fill::Solid(color)) => {
                                         format!(
                                             "fill: none; stroke: {}; stroke-width: {}px;",
-                                            color.to_string(&canvas.colormap),
-                                            canvas.line_width
+                                            color.to_string(&self.colormap),
+                                            self.line_width
                                         )
                                     }
                                     _ => format!(
                                         "fill: none; stroke: {}; stroke-width: {}px;",
-                                        default_color, canvas.line_width
+                                        default_color, self.line_width
                                     ),
                                 },
                             ),
                     );
                 }
                 Object::SmallCircle(center) => {
-                    eprintln!("render: small_circle({:?})", center);
+                    eprintln!("render: small_circle({:?}) [{}]", center, id);
                     group = group.add(
                         svg::node::element::Circle::new()
-                            .set("cx", center.coords(&canvas).0)
-                            .set("cy", center.coords(&canvas).1)
-                            .set("r", canvas.small_circle_radius)
+                            .set("cx", center.coords(&self).0)
+                            .set("cy", center.coords(&self).1)
+                            .set("r", self.small_circle_radius)
                             .set(
                                 "style",
                                 match maybe_fill {
                                     // TODO
                                     Some(Fill::Solid(color)) => {
-                                        format!("fill: {};", color.to_string(&canvas.colormap))
+                                        format!("fill: {};", color.to_string(&self.colormap))
                                     }
                                     _ => format!(
                                         "fill: none; stroke: {}; stroke-width: {}px;",
-                                        default_color, canvas.empty_shape_stroke_width
+                                        default_color, self.empty_shape_stroke_width
                                     ),
                                 },
                             ),
                     );
                 }
                 Object::Dot(center) => {
-                    eprintln!("render: dot({:?})", center);
+                    eprintln!("render: dot({:?}) [{}]", center, id);
                     group = group.add(
                         svg::node::element::Circle::new()
-                            .set("cx", center.coords(&canvas).0)
-                            .set("cy", center.coords(&canvas).1)
-                            .set("r", canvas.dot_radius)
+                            .set("cx", center.coords(&self).0)
+                            .set("cy", center.coords(&self).1)
+                            .set("r", self.dot_radius)
                             .set(
                                 "style",
                                 match maybe_fill {
                                     // TODO
                                     Some(Fill::Solid(color)) => {
-                                        format!("fill: {};", color.to_string(&canvas.colormap))
+                                        format!("fill: {};", color.to_string(&self.colormap))
                                     }
                                     _ => format!(
                                         "fill: none; stroke: {}; stroke-width: {}px;",
-                                        default_color, canvas.empty_shape_stroke_width
+                                        default_color, self.empty_shape_stroke_width
                                     ),
                                 },
                             ),
                     );
                 }
                 Object::BigCircle(center) => {
-                    eprintln!("render: big_circle({:?})", center);
+                    eprintln!("render: big_circle({:?}) [{}]", center, id);
                     group = group.add(
                         svg::node::element::Circle::new()
-                            .set("cx", center.coords(&canvas).0)
-                            .set("cy", center.coords(&canvas).1)
-                            .set("r", canvas.cell_size / 2)
+                            .set("cx", center.coords(&self).0)
+                            .set("cy", center.coords(&self).1)
+                            .set("r", self.cell_size / 2)
                             .set(
                                 "style",
                                 match maybe_fill {
                                     // TODO
                                     Some(Fill::Solid(color)) => {
-                                        format!("fill: {};", color.to_string(&canvas.colormap))
+                                        format!("fill: {};", color.to_string(&self.colormap))
                                     }
                                     _ => format!(
                                         "fill: none; stroke: {}; stroke-width: 0.5px;",
@@ -1126,15 +1259,15 @@ impl Shape {
             svg = svg.add(group);
         }
         // render a dotted grid
-        if canvas.render_grid {
-            for i in 0..canvas.grid_size.0 as i32 {
-                for j in 0..canvas.grid_size.1 as i32 {
-                    let (x, y) = Anchor(i, j).coords(&canvas);
+        if self.render_grid {
+            for i in 0..self.grid_size.0 as i32 {
+                for j in 0..self.grid_size.1 as i32 {
+                    let (x, y) = Anchor(i, j).coords(&self);
                     svg = svg.add(
                         svg::node::element::Circle::new()
                             .set("cx", x)
                             .set("cy", y)
-                            .set("r", canvas.line_width / 4.0)
+                            .set("r", self.line_width / 4.0)
                             .set("fill", "#000"),
                     );
 
@@ -1151,17 +1284,21 @@ impl Shape {
                 }
             }
         }
-        svg.set(
-            "viewBox",
-            format!(
-                "{0} {0} {1} {2}",
-                -(canvas.canvas_outter_padding as i32),
-                canvas_width,
-                canvas_height
-            ),
-        )
-        .set("width", canvas_width)
-        .set("height", canvas_height)
-        .to_string()
+        self._render_cache = Some(
+            svg.set(
+                "viewBox",
+                format!(
+                    "{0} {0} {1} {2}",
+                    -(self.canvas_outter_padding as i32),
+                    canvas_width,
+                    canvas_height
+                ),
+            )
+            .set("width", canvas_width)
+            .set("height", canvas_height)
+            .to_string(),
+        );
+
+        self._render_cache.as_ref().unwrap().to_string()
     }
 }
