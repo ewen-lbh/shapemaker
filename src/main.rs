@@ -176,7 +176,6 @@ impl<'a, C> Context<'a, C> {
             0,
             LaterHook {
                 when: Box::new(move |_, context, _previous_beat| {
-                    println!("{} == {} + {}", context.frame, current_frame, delay);
                     context.frame >= current_frame + delay
                 }),
                 render_function: Box::new(render_function),
@@ -190,7 +189,6 @@ impl<'a, C> Context<'a, C> {
             0,
             LaterHook {
                 when: Box::new(move |_, context, _previous_beat| {
-                    println!("{} == {} + {}", context.ms, current_ms, delay);
                     context.ms >= current_ms + delay
                 }),
                 render_function: Box::new(render_function),
@@ -312,11 +310,9 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let bpm = std::fs::read_to_string(audio.bpm)
             .map_err(|e| format!("Failed to read BPM file: {}", e))
             .and_then(|bpm| {
-                println!("BPM in file: {}", bpm);
                 bpm.trim()
                     .parse::<usize>()
                     .map(|parsed| {
-                        println!("Parsed BPM: {}", parsed);
                         parsed
                     })
                     .map_err(|e| format!("Failed to parse BPM file: {}", e))
@@ -385,8 +381,6 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 },
             );
         }
-
-        println!("registered bpm: {}", bpm);
 
         Self {
             audio_paths: audio,
@@ -556,7 +550,6 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             let mut later_hooks_to_delete: Vec<usize> = vec![];
 
             for (i, hook) in context.later_hooks.iter().enumerate() {
-                println!("new late hook! checking if relevant…");
                 if (hook.when)(&mut canvas, &context, previous_rendered_beat) {
                     (hook.render_function)(&mut canvas, &context);
                     later_hooks_to_delete.push(i);
@@ -564,7 +557,6 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             }
 
             for i in later_hooks_to_delete {
-                println!("deleting old late hook");
                 context.later_hooks.remove(i);
             }
 
@@ -766,7 +758,6 @@ fn main() {
                 ),
             );
             context.later_ms(200, &|canvas: &mut Canvas, _| {
-                println!("removing beatdot");
                 canvas.remove_object("beatdot");
             });
             canvas.add_object(
