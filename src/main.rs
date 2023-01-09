@@ -108,6 +108,8 @@ impl<C> std::fmt::Debug for Hook<C> {
 #[derive(Debug)]
 struct Stem {
     amplitude_db: Vec<f32>,
+    /// max amplitude of this stem
+    amplitude_max: f32,
     /// in milliseconds
     duration_ms: usize,
 }
@@ -115,7 +117,13 @@ struct Stem {
 #[derive(Debug)]
 struct StemAtInstant {
     amplitude: f32,
+    amplitude_max: f32,
     duration: usize,
+}
+impl StemAtInstant {
+    fn amplitude_relative(&self) -> f32 {
+        self.amplitude / self.amplitude_max
+    }
 }
 
 struct Command<C> {
@@ -149,7 +157,8 @@ struct Context<'a, AdditionalContext = ()> {
 impl<'a, C> Context<'a, C> {
     fn stem(&self, name: &str) -> StemAtInstant {
         StemAtInstant {
-            amplitude: self.stems[name].amplitude_db[self.ms],
+            amplitude: self.stems[name].amplitude_db[self.frame],
+            amplitude_max: self.stems[name].amplitude_max,
             duration: self.stems[name].duration_ms,
         }
     }
@@ -188,9 +197,7 @@ impl<'a, C> Context<'a, C> {
         self.later_hooks.insert(
             0,
             LaterHook {
-                when: Box::new(move |_, context, _previous_beat| {
-                    context.ms >= current_ms + delay
-                }),
+                when: Box::new(move |_, context, _previous_beat| context.ms >= current_ms + delay),
                 render_function: Box::new(render_function),
             },
         );
@@ -312,9 +319,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             .and_then(|bpm| {
                 bpm.trim()
                     .parse::<usize>()
-                    .map(|parsed| {
-                        parsed
-                    })
+                    .map(|parsed| parsed)
                     .map_err(|e| format!("Failed to parse BPM file: {}", e))
             })
             .unwrap();
@@ -359,22 +364,36 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 .map_err(|e| format!("Failed to read stem file: {}", e))
                 .unwrap();
             let spec = reader.spec();
-            let samples_per_millisecond =
-                (spec.sample_rate as usize / 1000 * spec.channels as usize);
+            let sample_to_frame = |sample: usize| {
+                (sample as f32 / spec.channels as f32 / spec.sample_rate as f32 * self.fps as f32)
+                    as usize
+            };
             let mut amplitude_db: Vec<f32> = vec![];
-            let mut current_amplitude_mean: f32 = 0.0;
+            let mut current_amplitude_sum: f32 = 0.0;
+            let mut current_amplitude_buffer_size: usize = 0;
+            let mut last_frame = 0;
             for (i, sample) in reader.samples::<i16>().enumerate() {
                 let sample = sample.unwrap();
-                if i % samples_per_millisecond == 0 {
-                    amplitude_db.push(current_amplitude_mean);
-                    current_amplitude_mean = 0.0;
+                // println!("Reading sample {} is {}", i, sample);
+                if sample_to_frame(i) > last_frame {
+                    amplitude_db.push(current_amplitude_sum / current_amplitude_buffer_size as f32);
+                    current_amplitude_sum = 0.0;
+                    current_amplitude_buffer_size = 0;
+                    last_frame = sample_to_frame(i);
                 } else {
-                    current_amplitude_mean += (20.0 * (sample as f32).log10()).abs();
+                    current_amplitude_sum += sample.abs() as f32;
+                    current_amplitude_buffer_size += 1;
                 }
             }
+            amplitude_db.push(current_amplitude_sum / current_amplitude_buffer_size as f32);
+
             stems.insert(
                 stem_name.to_string(),
                 Stem {
+                    amplitude_max: *amplitude_db
+                        .iter()
+                        .max_by(|a, b| a.partial_cmp(b).unwrap())
+                        .unwrap(),
                     amplitude_db,
                     duration_ms: (reader.duration() as f32 / spec.sample_rate as f32 * 1000.0)
                         as usize,
@@ -753,7 +772,7 @@ fn main() {
             canvas.add_object(
                 "beatdot".to_string(),
                 (
-                    Object::BigCircle(CenterAnchor(-1, -1)),
+                    Object::BigCircle(CenterAnchor(7, 4)),
                     Some(Fill::Solid(Color::Cyan)),
                 ),
             );
@@ -797,6 +816,16 @@ fn main() {
                     None,
                 ),
             );
+            canvas.remove_object("kickcircle");
+            if context.stem("kick").amplitude_relative() > 0.5 {
+                canvas.add_object(
+                    "kickcircle".to_string(),
+                    (
+                        Object::SmallCircle(Anchor(8, 4)),
+                        Some(Fill::Solid(Color::Yellow)),
+                    ),
+                );
+            }
             let float_beat = context.bpm as f32 * context.ms as f32 / 1000.0 / 60.0;
             canvas.add_object(
                 "floatbeat".to_string(),
