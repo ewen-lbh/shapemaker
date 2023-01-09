@@ -2,9 +2,9 @@ use chrono::NaiveDateTime;
 use serde_json;
 use std::collections::HashMap;
 use std::fmt::Formatter;
-use std::fs::File;
+use std::fs::{create_dir, remove_dir_all, File};
 use std::io::{BufReader, Write};
-use std::ops::Range;
+use std::ops::{Add, Range};
 use std::sync::Arc;
 
 use docopt::Docopt;
@@ -67,11 +67,16 @@ type CommandAction<C> = dyn Fn(Vec<&str>, &mut Canvas, &mut Context<C>);
 /// Arguments: canvas, context, previous rendered beat
 type HookCondition<C> = dyn Fn(&mut Canvas, &mut Context<C>, usize) -> bool;
 
+type LaterRenderFunction<C> = dyn Fn(&mut Canvas, &Context<C>);
+
+/// Arguments: canvas, context, previous rendered beat
+type LaterHookCondition<C> = dyn Fn(&mut Canvas, &Context<C>, usize) -> bool;
+
 #[derive(Debug)]
 struct Video<C> {
     fps: usize,
     initial_canvas: Canvas,
-    hooks: Vec<Box<Hook<C>>>,
+    hooks: Vec<Hook<C>>,
     commands: Vec<Box<Command<C>>>,
     frames: Vec<Canvas>,
     frames_output_directory: &'static str,
@@ -84,6 +89,11 @@ struct Video<C> {
 struct Hook<C> {
     when: Box<HookCondition<C>>,
     render_function: Box<RenderFunction<C>>,
+}
+
+struct LaterHook<C> {
+    when: Box<LaterHookCondition<C>>,
+    render_function: Box<LaterRenderFunction<C>>,
 }
 
 impl<C> std::fmt::Debug for Hook<C> {
@@ -124,7 +134,6 @@ impl<C> std::fmt::Debug for Command<C> {
     }
 }
 
-#[derive(Debug)]
 struct Context<'a, AdditionalContext = ()> {
     frame: usize,
     beat: usize,
@@ -133,6 +142,7 @@ struct Context<'a, AdditionalContext = ()> {
     bpm: usize,
     stems: &'a HashMap<String, Stem>,
     markers: &'a HashMap<usize, String>, // milliseconds -> marker text
+    later_hooks: Vec<LaterHook<AdditionalContext>>,
     u: AdditionalContext,
 }
 
@@ -149,6 +159,52 @@ impl<'a, C> Context<'a, C> {
             .get(&self.ms)
             .unwrap_or(&"".to_string())
             .to_string()
+    }
+
+    fn duration_ms(&self) -> usize {
+        self.stems
+            .values()
+            .map(|stem| stem.duration_ms)
+            // .map(|_| duration_override)
+            .max()
+            .unwrap()
+    }
+
+    fn later_frames(&mut self, delay: usize, render_function: &'static LaterRenderFunction<C>) {
+        let current_frame = self.frame;
+        self.later_hooks.insert(
+            0,
+            LaterHook {
+                when: Box::new(move |_, context, _previous_beat| {
+                    context.frame == current_frame + delay
+                }),
+                render_function: Box::new(render_function),
+            },
+        );
+    }
+
+    fn later_ms(&mut self, delay: usize, render_function: &'static LaterRenderFunction<C>) {
+        let current_ms = self.ms;
+        self.later_hooks.insert(
+            0,
+            LaterHook {
+                when: Box::new(move |_, context, _previous_beat| context.ms == current_ms + delay),
+                render_function: Box::new(render_function),
+            },
+        );
+    }
+
+    fn later_beats(&mut self, delay: usize, render_function: &'static LaterRenderFunction<C>) {
+        let current_beat = self.beat;
+        self.later_hooks.insert(
+            0,
+            LaterHook {
+                when: Box::new(move |_, context, _previous_beat| {
+                    context.beat == current_beat + delay
+                }),
+                render_function: Box::new(render_function),
+            },
+        );
     }
 }
 
@@ -198,7 +254,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 "libx264",
                 "-pix_fmt",
                 "yuv420p",
-                "-y"
+                "-y",
             ])
             .arg::<String>(render_to)
             .output();
@@ -252,8 +308,13 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let bpm = std::fs::read_to_string(audio.bpm)
             .map_err(|e| format!("Failed to read BPM file: {}", e))
             .and_then(|bpm| {
+                println!("BPM in file: {}", bpm);
                 bpm.trim()
                     .parse::<usize>()
+                    .map(|parsed| {
+                        println!("Parsed BPM: {}", parsed);
+                        parsed
+                    })
                     .map_err(|e| format!("Failed to parse BPM file: {}", e))
             })
             .unwrap();
@@ -321,6 +382,8 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             );
         }
 
+        println!("registered bpm: {}", bpm);
+
         Self {
             audio_paths: audio,
             markers,
@@ -340,7 +403,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             render_function: Box::new(render_function),
         };
         let mut hooks = self.hooks;
-        hooks.push(Box::new(hook));
+        hooks.push(hook);
         Self { hooks, ..self }
     }
 
@@ -352,7 +415,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             render_function: Box::new(render_function),
         };
         let mut hooks = self.hooks;
-        hooks.push(Box::new(hook));
+        hooks.push(hook);
         Self { hooks, ..self }
     }
 
@@ -362,7 +425,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             render_function: Box::new(render_function),
         };
         let mut hooks = self.hooks;
-        hooks.push(Box::new(hook));
+        hooks.push(hook);
         Self { hooks, ..self }
     }
 
@@ -425,7 +488,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             render_function: Box::new(render_function),
         };
         let mut hooks = self.hooks;
-        hooks.push(Box::new(hook));
+        hooks.push(hook);
         Self { hooks, ..self }
     }
 
@@ -445,35 +508,60 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
     }
 
     fn total_frames(&self) -> usize {
-        self.fps
-            * self
-                .stems
-                .values()
-                .map(|stem| stem.duration_ms / 1000)
-                .max()
-                .unwrap()
+        // let duration_override = 5;
+        self.fps * self.duration_ms() / 1000
     }
 
-    fn render_to(&mut self, output_file: String) {
+    fn duration_ms(&self) -> usize {
+        self.stems
+            .values()
+            .map(|stem| stem.duration_ms)
+            // .map(|_| duration_override)
+            .max()
+            .unwrap()
+    }
+
+    fn render_to(&self, output_file: String) {
         let mut context = Context {
             frame: 0,
             beat: 0,
             timestamp: "00:00:00.000".to_string(),
             ms: 0,
-            bpm: 120,
+            bpm: self.bpm,
             stems: &self.stems,
             markers: &self.markers,
             u: AdditionalContext::default(),
+            later_hooks: vec![],
         };
 
         let mut canvas = self.initial_canvas.clone();
         let mut previous_rendered_beat = 0;
+
+        remove_dir_all(self.frames_output_directory.clone()).unwrap();
+        create_dir(self.frames_output_directory.clone()).unwrap();
+
+        let progress_bar = indicatif::ProgressBar::new(self.total_frames() as u64);
 
         for _ in 0..self.total_frames() {
             for hook in &self.hooks {
                 if (hook.when)(&mut canvas, &mut context, previous_rendered_beat) {
                     (hook.render_function)(&mut canvas, &mut context);
                 }
+            }
+
+            let mut later_hooks_to_delete: Vec<usize> = vec![];
+
+            for (i, hook) in context.later_hooks.iter().enumerate() {
+                println!("new late hook! checking if relevant…");
+                if (hook.when)(&mut canvas, &context, previous_rendered_beat) {
+                    (hook.render_function)(&mut canvas, &context);
+                    later_hooks_to_delete.push(i);
+                }
+            }
+
+            for i in later_hooks_to_delete {
+                println!("deleting old late hook");
+                context.later_hooks.remove(i);
             }
 
             if context.marker().starts_with("*") {
@@ -497,24 +585,33 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 }
             }
 
-            self.build_frame(&mut canvas, context.frame);
+            if let Err(e) = self.build_frame(&mut canvas, context.frame) {
+                panic!("Failed to build frame: {}", e);
+            }
 
             previous_rendered_beat = context.beat.clone();
             context.frame += 1;
-            context.ms += (1.0 / (self.fps as f32) * 1000.0) as usize;
-            context.timestamp = format!(
-                "{}",
-                NaiveDateTime::from_timestamp_millis(context.ms as i64)
-                    .unwrap()
-                    .format("%H:%M:%S%.3f")
-            );
             context.beat = (context.bpm as f32 * context.ms as f32 / 1000.0 / 60.0) as usize;
+            context.ms += (1.0 / (self.fps as f32) * 1000.0) as usize;
+            context.timestamp = format!("{}", milliseconds_to_timestamp(context.ms));
+            progress_bar.inc(1);
         }
+
+        progress_bar.finish();
 
         if let Err(e) = self.build_video(output_file) {
             panic!("Failed to build video: {}", e);
         }
     }
+}
+
+fn milliseconds_to_timestamp(ms: usize) -> String {
+    format!(
+        "{}",
+        NaiveDateTime::from_timestamp_millis(ms as i64)
+            .unwrap()
+            .format("%H:%M:%S%.3f")
+    )
 }
 
 fn main() {
@@ -645,13 +742,29 @@ fn main() {
         .sync_to(AudioSyncPaths {
             stems: "audiosync/stems/",
             landmarks: "audiosync/landmarks.json",
-            complete: "audiosync/complete.mp3",
+            complete: "audiosync/sample.mp3",
             bpm: "audiosync/bpm.txt",
         })
-        .set_fps(15)
+        .set_fps(30)
         .set_initial_canvas(canvas)
         .on_beat(&|canvas: &mut Canvas, context: &mut Context<()>| {
             canvas.clear();
+            canvas.set_background(if context.beat % 2 == 0 {
+                Color::Black
+            } else {
+                Color::Red
+            });
+            canvas.add_object(
+                "beatdot".to_string(),
+                (
+                    Object::BigCircle(CenterAnchor(-1, -1)),
+                    Some(Fill::Solid(Color::Cyan)),
+                ),
+            );
+            context.later_ms(200, &|canvas: &mut Canvas, _| {
+                println!("removing beatdot");
+                canvas.remove_object("beatdot");
+            });
             canvas.add_object(
                 "beat".to_string(),
                 (
@@ -668,11 +781,62 @@ fn main() {
                 ),
             );
         })
-        .on_tick(&|_, context: &mut Context<()>| {
-            println!(
-                "frame {} @ {} beat {}",
-                context.frame, context.timestamp, context.beat
+        .on_tick(&|canvas: &mut Canvas, context: &mut Context<()>| {
+            // println!(
+            //     "frame {} @ {} beat {}",
+            //     context.frame, context.timestamp, context.beat
+            // );
+            canvas.remove_object("time");
+            canvas.add_object(
+                "time".to_string(),
+                (
+                    Object::RawSVG(Box::new(
+                        svg::node::element::Text::new()
+                            .set("x", 100)
+                            .set("y", 200)
+                            .set("font-size", 50)
+                            .set("fill", "white")
+                            .set("font-family", "monospace")
+                            .add(svg::node::Text::new(format!("{}", context.timestamp))),
+                    )),
+                    None,
+                ),
             );
+            let float_beat = context.bpm as f32 * context.ms as f32 / 1000.0 / 60.0;
+            canvas.add_object(
+                "floatbeat".to_string(),
+                (
+                    Object::RawSVG(Box::new(
+                        svg::node::element::Text::new()
+                            .set("x", 100)
+                            .set("y", 250)
+                            .set("font-size", 30)
+                            .set("fill", "white")
+                            .set("font-family", "monospace")
+                            .add(svg::node::Text::new(format!("beat {}", float_beat))),
+                    )),
+                    None,
+                ),
+            );
+            canvas.add_object(
+                "staticinfo".to_string(),
+                (
+                    Object::RawSVG(Box::new(
+                        svg::node::element::Text::new()
+                            .set("x", 100)
+                            .set("y", 300)
+                            .set("font-size", 15)
+                            .set("fill", "white")
+                            .set("font-family", "monospace")
+                            .add(svg::node::Text::new(format!(
+                                "bpm {} duration {}",
+                                context.bpm,
+                                milliseconds_to_timestamp(context.duration_ms()),
+                            ))),
+                    )),
+                    None,
+                ),
+            )
         })
         .on("start credits", &|canvas: &mut Canvas, _| {
             canvas.add_object(
@@ -721,6 +885,7 @@ struct Canvas {
     render_grid: bool,
     colormap: ColorMapping,
     shape: Shape,
+    background: Option<Color>,
     _render_cache: Option<String>,
 }
 
@@ -731,20 +896,28 @@ impl Canvas {
 
     fn set_shape(&mut self, shape: Shape) {
         self.shape = shape;
-        println!("invalidating canvas render cache");
+        // println!("invalidating canvas render cache");
         self._render_cache = None;
     }
 
     fn add_object(&mut self, name: String, object: (Object, Option<Fill>)) {
         self.shape.objects.insert(name, object);
-        println!("invalidating canvas render cache");
+        // println!("invalidating canvas render cache");
         self._render_cache = None;
     }
 
     fn remove_object(&mut self, name: &str) {
         self.shape.objects.remove(name);
-        println!("invalidating canvas render cache");
+        // println!("invalidating canvas render cache");
         self._render_cache = None;
+    }
+
+    fn set_background(&mut self, color: Color) {
+        self.background = Some(color);
+    }
+
+    fn remove_background(&mut self) {
+        self.background = None;
     }
 
     fn default_settings() -> Self {
@@ -764,6 +937,7 @@ impl Canvas {
                 objects: HashMap::new(),
             },
             _render_cache: None,
+            background: None,
         }
     }
     fn random_shape(&self, name: &'static str) -> Shape {
@@ -912,6 +1086,7 @@ impl Canvas {
         self.shape = Shape {
             objects: HashMap::new(),
         };
+        self.remove_background()
     }
 }
 
@@ -1007,6 +1182,12 @@ enum Color {
     Gray,
 }
 
+impl Default for Color {
+    fn default() -> Self {
+        Self::Black
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 struct ColorMapping {
     black: String,
@@ -1089,8 +1270,8 @@ impl Canvas {
         let canvas_height =
             self.cell_size * (self.grid_size.1 - 1) + 2 * self.canvas_outter_padding;
         let default_color = Color::Black.to_string(&self.colormap);
-        let background_color = self.random_color();
-        eprintln!("render: background_color({:?})", background_color);
+        let background_color = self.background.unwrap_or(Color::default());
+        // eprintln!("render: background_color({:?})", background_color);
         let mut svg = svg::Document::new().add(
             svg::node::element::Rectangle::new()
                 .set("x", -(self.canvas_outter_padding as i32))
@@ -1103,11 +1284,11 @@ impl Canvas {
             let mut group = svg::node::element::Group::new();
             match object {
                 Object::RawSVG(svg) => {
-                    eprintln!("render: raw_svg [{}]", id);
+                    // eprintln!("render: raw_svg [{}]", id);
                     group = group.add(svg.clone());
                 }
                 Object::Polygon(start, lines) => {
-                    eprintln!("render: polygon({:?}, {:?}) [{}]", start, lines, id);
+                    // eprintln!("render: polygon({:?}, {:?}) [{}]", start, lines, id);
                     let mut path = svg::node::element::path::Data::new();
                     path = path.move_to(start.coords(&self));
                     for line in lines {
@@ -1135,7 +1316,7 @@ impl Canvas {
                         );
                 }
                 Object::Line(start, end) => {
-                    eprintln!("render: line({:?}, {:?}) [{}]", start, end, id);
+                    // eprintln!("render: line({:?}, {:?}) [{}]", start, end, id);
                     group = group.add(
                         svg::node::element::Line::new()
                             .set("x1", start.coords(&self).0)
@@ -1162,10 +1343,10 @@ impl Canvas {
                 }
                 Object::CurveInward(start, end) | Object::CurveOutward(start, end) => {
                     let inward = if matches!(object, Object::CurveInward(_, _)) {
-                        eprintln!("render: curve_inward({:?}, {:?}) [{}]", start, end, id);
+                        // eprintln!("render: curve_inward({:?}, {:?}) [{}]", start, end, id);
                         true
                     } else {
-                        eprintln!("render: curve_outward({:?}, {:?}) [{}]", start, end, id);
+                        // eprintln!("render: curve_outward({:?}, {:?}) [{}]", start, end, id);
                         false
                     };
 
@@ -1175,19 +1356,19 @@ impl Canvas {
                     let midpoint = ((start_x + end_x) / 2.0, (start_y + end_y) / 2.0);
                     let start_from_midpoint = (start_x - midpoint.0, start_y - midpoint.1);
                     let end_from_midpoint = (end_x - midpoint.0, end_y - midpoint.1);
-                    eprintln!("        midpoint: {:?}", midpoint);
-                    eprintln!(
-                        "        from midpoint: {:?} -> {:?}",
-                        start_from_midpoint, end_from_midpoint
-                    );
+                    // eprintln!("        midpoint: {:?}", midpoint);
+                    // eprintln!(
+                    // "        from midpoint: {:?} -> {:?}",
+                    // start_from_midpoint, end_from_midpoint
+                    // );
                     let control = {
                         let relative = (end_x - start_x, end_y - start_y);
-                        eprintln!("        relative: {:?}", relative);
+                        // eprintln!("        relative: {:?}", relative);
                         // diagonal line is going like this: \
                         if start_from_midpoint.0 * start_from_midpoint.1 > 0.0
                             && end_from_midpoint.0 * end_from_midpoint.1 > 0.0
                         {
-                            eprintln!("        diagonal \\");
+                            // eprintln!("        diagonal \\");
                             if inward {
                                 (
                                     midpoint.0 + relative.0.abs() / 2.0,
@@ -1203,7 +1384,7 @@ impl Canvas {
                         } else if start_from_midpoint.0 * start_from_midpoint.1 < 0.0
                             && end_from_midpoint.0 * end_from_midpoint.1 < 0.0
                         {
-                            eprintln!("        diagonal /");
+                            // eprintln!("        diagonal /");
                             if inward {
                                 (
                                     midpoint.0 - relative.0.abs() / 2.0,
@@ -1217,7 +1398,7 @@ impl Canvas {
                             }
                         // line is horizontal
                         } else if start_y == end_y {
-                            eprintln!("        horizontal");
+                            // eprintln!("        horizontal");
                             (
                                 midpoint.0,
                                 midpoint.1
@@ -1225,7 +1406,7 @@ impl Canvas {
                             )
                         // line is vertical
                         } else if start_x == end_x {
-                            eprintln!("        vertical");
+                            // eprintln!("        vertical");
                             (
                                 midpoint.0
                                     + (if inward { -1.0 } else { 1.0 }) * relative.1.abs() / 2.0,
@@ -1235,7 +1416,7 @@ impl Canvas {
                             unreachable!()
                         }
                     };
-                    eprintln!("        control: {:?}", control);
+                    // eprintln!("        control: {:?}", control);
                     group = group.add(
                         svg::node::element::Path::new()
                             .set(
@@ -1264,7 +1445,7 @@ impl Canvas {
                     );
                 }
                 Object::SmallCircle(center) => {
-                    eprintln!("render: small_circle({:?}) [{}]", center, id);
+                    // eprintln!("render: small_circle({:?}) [{}]", center, id);
                     group = group.add(
                         svg::node::element::Circle::new()
                             .set("cx", center.coords(&self).0)
@@ -1286,7 +1467,7 @@ impl Canvas {
                     );
                 }
                 Object::Dot(center) => {
-                    eprintln!("render: dot({:?}) [{}]", center, id);
+                    // eprintln!("render: dot({:?}) [{}]", center, id);
                     group = group.add(
                         svg::node::element::Circle::new()
                             .set("cx", center.coords(&self).0)
@@ -1308,7 +1489,7 @@ impl Canvas {
                     );
                 }
                 Object::BigCircle(center) => {
-                    eprintln!("render: big_circle({:?}) [{}]", center, id);
+                    // eprintln!("render: big_circle({:?}) [{}]", center, id);
                     group = group.add(
                         svg::node::element::Circle::new()
                             .set("cx", center.coords(&self).0)
@@ -1330,7 +1511,7 @@ impl Canvas {
                     );
                 }
             }
-            eprintln!("        fill: {:?}", &maybe_fill);
+            // eprintln!("        fill: {:?}", &maybe_fill);
             svg = svg.add(group);
         }
         // render a dotted grid
