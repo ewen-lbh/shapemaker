@@ -176,7 +176,8 @@ impl<'a, C> Context<'a, C> {
             0,
             LaterHook {
                 when: Box::new(move |_, context, _previous_beat| {
-                    context.frame == current_frame + delay
+                    println!("{} == {} + {}", context.frame, current_frame, delay);
+                    context.frame >= current_frame + delay
                 }),
                 render_function: Box::new(render_function),
             },
@@ -188,7 +189,10 @@ impl<'a, C> Context<'a, C> {
         self.later_hooks.insert(
             0,
             LaterHook {
-                when: Box::new(move |_, context, _previous_beat| context.ms == current_ms + delay),
+                when: Box::new(move |_, context, _previous_beat| {
+                    println!("{} == {} + {}", context.ms, current_ms, delay);
+                    context.ms >= current_ms + delay
+                }),
                 render_function: Box::new(render_function),
             },
         );
@@ -200,7 +204,7 @@ impl<'a, C> Context<'a, C> {
             0,
             LaterHook {
                 when: Box::new(move |_, context, _previous_beat| {
-                    context.beat == current_beat + delay
+                    context.beat >= current_beat + delay
                 }),
                 render_function: Box::new(render_function),
             },
