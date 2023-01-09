@@ -5,6 +5,7 @@ use std::fmt::Formatter;
 use std::fs::File;
 use std::io::{BufReader, Write};
 use std::ops::Range;
+use std::sync::Arc;
 
 use docopt::Docopt;
 use rand::Rng;
@@ -61,7 +62,7 @@ struct Args {
 }
 
 type RenderFunction<C> = dyn Fn(&mut Canvas, &mut Context<C>);
-type CommandAction<C> = dyn Fn([&str], &mut Canvas, &mut Context<C>);
+type CommandAction<C> = dyn Fn(Vec<&str>, &mut Canvas, &mut Context<C>);
 
 /// Arguments: canvas, context, previous rendered beat
 type HookCondition<C> = dyn Fn(&mut Canvas, &mut Context<C>, usize) -> bool;
@@ -175,13 +176,21 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         }
     }
 
-    fn build_video(&self, render_to: &'static str) -> Result<(), String> {
+    fn build_video(&self, render_to: String) -> Result<(), String> {
         let result = std::process::Command::new("ffmpeg")
-            .arg(format!("-framerate {}", self.fps))
-            .arg(format!("-i '{}'", self.frames_output_directory))
-            .arg(format!("-i '{}'", self.audio_paths.complete))
+            // .arg(format!("-framerate {}", self.fps))
+            // .arg("-pattern_type glob")
+            // .arg(format!("-i '{}/*.png'", self.frames_output_directory))
+            // .arg(format!("-i '{}'", self.audio_paths.complete))
+            .arg("-framerate")
+            .arg(self.fps.to_string())
+            .arg("-pattern_type")
+            .arg("glob")
+            .arg("-i")
+            .arg(format!("{}/*.png", self.frames_output_directory))
+            .arg("-i")
+            .arg(self.audio_paths.complete)
             .args([
-                "-pattern_type glob",
                 "-c:a",
                 "copy",
                 "-shortest",
@@ -189,20 +198,30 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 "libx264",
                 "-pix_fmt",
                 "yuv420p",
+                "-y"
             ])
-            .arg(render_to)
+            .arg::<String>(render_to)
             .output();
 
         match result {
             Err(e) => Err(format!("Failed to execute ffmpeg: {}", e)),
-            _ => Ok(()),
+            Ok(r) => {
+                println!("{}", std::str::from_utf8(&r.stdout).unwrap());
+                println!("{}", std::str::from_utf8(&r.stderr).unwrap());
+                Ok(())
+            }
         }
     }
 
     fn build_frame(&self, canvas: &mut Canvas, frame_no: usize) -> Result<(), String> {
         let mut spawned = std::process::Command::new("convert")
             .arg("-")
-            .arg(format!("{}/{}.png", self.frames_output_directory, frame_no))
+            .arg(format!(
+                "{}/{:0width$}.png",
+                self.frames_output_directory,
+                frame_no,
+                width = self.total_frames().to_string().len()
+            ))
             .stdin(std::process::Stdio::piped())
             .spawn()
             .unwrap();
@@ -233,7 +252,8 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let bpm = std::fs::read_to_string(audio.bpm)
             .map_err(|e| format!("Failed to read BPM file: {}", e))
             .and_then(|bpm| {
-                bpm.parse::<usize>()
+                bpm.trim()
+                    .parse::<usize>()
                     .map_err(|e| format!("Failed to parse BPM file: {}", e))
             })
             .unwrap();
@@ -424,7 +444,17 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         Self { commands, ..self }
     }
 
-    fn render_to(&mut self, output_file: &'static str) {
+    fn total_frames(&self) -> usize {
+        self.fps
+            * self
+                .stems
+                .values()
+                .map(|stem| stem.duration_ms / 1000)
+                .max()
+                .unwrap()
+    }
+
+    fn render_to(&mut self, output_file: String) {
         let mut context = Context {
             frame: 0,
             beat: 0,
@@ -438,21 +468,32 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
 
         let mut canvas = self.initial_canvas.clone();
         let mut previous_rendered_beat = 0;
-        let mut last_marker_text = "";
 
-        let audio_frames_per_video_frame: usize = 44100 / self.fps;
-        let total_video_frames = self.fps
-            * context
-                .stems
-                .values()
-                .map(|stem| stem.duration_ms / 1000)
-                .max()
-                .unwrap();
-
-        for _ in 0..total_video_frames {
+        for _ in 0..self.total_frames() {
             for hook in &self.hooks {
                 if (hook.when)(&mut canvas, &mut context, previous_rendered_beat) {
                     (hook.render_function)(&mut canvas, &mut context);
+                }
+            }
+
+            if context.marker().starts_with("*") {
+                let marker = context.marker();
+                let args: Vec<&str> = marker.split(" ").map(|arg| arg.trim()).collect();
+                let command_name = &args.get(0).unwrap();
+                let arguments_count = args.len() - 1;
+
+                for command in &self.commands {
+                    if command.name == command_name.to_string() {
+                        if arguments_count != command.arguments.len() {
+                            panic!(
+                                "Invalid number of arguments for command '{}'. Expected {}, got {}",
+                                command_name,
+                                command.arguments.len(),
+                                arguments_count,
+                            );
+                        }
+                        (command.action)(args.clone(), &mut canvas, &mut context);
+                    }
                 }
             }
 
@@ -470,7 +511,9 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             context.beat = (context.bpm as f32 * context.ms as f32 / 1000.0 / 60.0) as usize;
         }
 
-        self.build_video(output_file);
+        if let Err(e) = self.build_video(output_file) {
+            panic!("Failed to build video: {}", e);
+        }
     }
 }
 
@@ -602,13 +645,28 @@ fn main() {
         .sync_to(AudioSyncPaths {
             stems: "audiosync/stems/",
             landmarks: "audiosync/landmarks.json",
-            complete: "audiosync/full.flac",
+            complete: "audiosync/complete.mp3",
             bpm: "audiosync/bpm.txt",
         })
         .set_fps(15)
         .set_initial_canvas(canvas)
         .on_beat(&|canvas: &mut Canvas, context: &mut Context<()>| {
-            canvas.set_shape(canvas.random_shape("test"));
+            canvas.clear();
+            canvas.add_object(
+                "beat".to_string(),
+                (
+                    Object::RawSVG(Box::new(
+                        svg::node::element::Text::new()
+                            .set("x", 100)
+                            .set("y", 100)
+                            .set("font-size", 100)
+                            .set("fill", "white")
+                            .set("font-family", "monospace")
+                            .add(svg::node::Text::new(format!("{}", context.beat))),
+                    )),
+                    None,
+                ),
+            );
         })
         .on_tick(&|_, context: &mut Context<()>| {
             println!(
@@ -628,7 +686,18 @@ fn main() {
         .on("end credits", &|canvas: &mut Canvas, _| {
             canvas.remove_object("credits text");
         })
-        .render_to("audiosync/out.mp4");
+        // .command("add", vec!["name", "shape", "color", "at"], &|arguments: Vec<&str>, canvas: &mut Canvas, context: &mut Context| {
+        //     let name = arguments[0].to_string();
+        //     let shape = canvas.parse_shape(arguments[1]);
+        //     let color = canvas.parse_color(arguments[2]);
+        //     let at = arguments[3].parse::<usize>().unwrap();
+        //     canvas.add_object(name, (shape, Some((color, at))));
+        // })
+        // .command("remove", vec!["name"], &|arguments: Vec<&str>, canvas: &mut Canvas, context: &mut Context| {
+        //     let name = arguments[0].to_string();
+        //     canvas.remove_object(name);
+        // })
+        .render_to(args.arg_file);
 
     // let shape = canvas.random_shape("test");
 
@@ -837,6 +906,12 @@ impl Canvas {
             12 => Color::Cyan,
             _ => unreachable!(),
         }
+    }
+
+    fn clear(&mut self) {
+        self.shape = Shape {
+            objects: HashMap::new(),
+        };
     }
 }
 
