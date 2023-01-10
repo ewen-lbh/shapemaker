@@ -65,12 +65,12 @@ type RenderFunction<C> = dyn Fn(&mut Canvas, &mut Context<C>);
 type CommandAction<C> = dyn Fn(Vec<&str>, &mut Canvas, &mut Context<C>);
 
 /// Arguments: canvas, context, previous rendered beat
-type HookCondition<C> = dyn Fn(&mut Canvas, &mut Context<C>, usize) -> bool;
+type HookCondition<C> = dyn Fn(&Canvas, &Context<C>, usize) -> bool;
 
 type LaterRenderFunction<C> = dyn Fn(&mut Canvas, &Context<C>);
 
 /// Arguments: canvas, context, previous rendered beat
-type LaterHookCondition<C> = dyn Fn(&mut Canvas, &Context<C>, usize) -> bool;
+type LaterHookCondition<C> = dyn Fn(&Canvas, &Context<C>, usize) -> bool;
 
 #[derive(Debug)]
 struct Video<C> {
@@ -154,10 +154,27 @@ struct Context<'a, AdditionalContext = ()> {
     u: AdditionalContext,
 }
 
+const DURATION_OVERRIDE: Option<usize> = Some(20 * 1000);
+
+trait GetOrDefault {
+    type Item;
+    fn get_or(&self, index: usize, default: Self::Item) -> Self::Item;
+}
+
+impl<T: Copy> GetOrDefault for Vec<T> {
+    type Item = T;
+    fn get_or(&self, index: usize, default: T) -> T {
+        *self.get(index).unwrap_or(&default)
+    }
+}
+
 impl<'a, C> Context<'a, C> {
     fn stem(&self, name: &str) -> StemAtInstant {
+        if !self.stems.contains_key(name) {
+            panic!("No stem named {:?} found.", name);
+        }
         StemAtInstant {
-            amplitude: self.stems[name].amplitude_db[self.frame],
+            amplitude: self.stems[name].amplitude_db.get_or(self.frame, 0.0),
             amplitude_max: self.stems[name].amplitude_max,
             duration: self.stems[name].duration_ms,
         }
@@ -174,7 +191,13 @@ impl<'a, C> Context<'a, C> {
         self.stems
             .values()
             .map(|stem| stem.duration_ms)
-            // .map(|_| duration_override)
+            .map(|duration| {
+                if let Some(duration_override) = DURATION_OVERRIDE {
+                    duration_override
+                } else {
+                    duration
+                }
+            })
             .max()
             .unwrap()
     }
@@ -365,7 +388,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 .unwrap();
             let spec = reader.spec();
             let sample_to_frame = |sample: usize| {
-                (sample as f32 / spec.channels as f32 / spec.sample_rate as f32 * self.fps as f32)
+                (sample as f64 / spec.channels as f64 / spec.sample_rate as f64 * self.fps as f64)
                     as usize
             };
             let mut amplitude_db: Vec<f32> = vec![];
@@ -395,7 +418,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                         .max_by(|a, b| a.partial_cmp(b).unwrap())
                         .unwrap(),
                     amplitude_db,
-                    duration_ms: (reader.duration() as f32 / spec.sample_rate as f32 * 1000.0)
+                    duration_ms: (reader.duration() as f64 / spec.sample_rate as f64 * 1000.0)
                         as usize,
                 },
             );
@@ -408,6 +431,16 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             stems,
             ..self
         }
+    }
+
+    fn init(self, render_function: &'static RenderFunction<AdditionalContext>) -> Self {
+        let hook = Hook {
+            when: Box::new(move |_, context, _| context.frame == 0),
+            render_function: Box::new(render_function),
+        };
+        let mut hooks = self.hooks;
+        hooks.push(hook);
+        Self { hooks, ..self }
     }
 
     fn on(
@@ -424,10 +457,10 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         Self { hooks, ..self }
     }
 
-    fn on_beat(self, render_function: &'static RenderFunction<AdditionalContext>) -> Self {
+    fn each_beat(self, render_function: &'static RenderFunction<AdditionalContext>) -> Self {
         let hook = Hook {
             when: Box::new(move |_, context, previous_rendered_beat| {
-                previous_rendered_beat != context.beat
+                context.beat == 0 || previous_rendered_beat != context.beat
             }),
             render_function: Box::new(render_function),
         };
@@ -436,7 +469,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         Self { hooks, ..self }
     }
 
-    fn on_tick(self, render_function: &'static RenderFunction<AdditionalContext>) -> Self {
+    fn each_frame(self, render_function: &'static RenderFunction<AdditionalContext>) -> Self {
         let hook = Hook {
             when: Box::new(move |_, _, _| true),
             render_function: Box::new(render_function),
@@ -446,7 +479,21 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         Self { hooks, ..self }
     }
 
-    fn on_timestamp(
+    fn at_frame(
+        self,
+        frame: usize,
+        render_function: &'static RenderFunction<AdditionalContext>,
+    ) -> Self {
+        let hook = Hook {
+            when: Box::new(move |_, context, _| context.frame == frame),
+            render_function: Box::new(render_function),
+        };
+        let mut hooks = self.hooks;
+        hooks.push(hook);
+        Self { hooks, ..self }
+    }
+
+    fn at_timestamp(
         self,
         timestamp: &'static str,
         render_function: &'static RenderFunction<AdditionalContext>,
@@ -525,7 +572,6 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
     }
 
     fn total_frames(&self) -> usize {
-        // let duration_override = 5;
         self.fps * self.duration_ms() / 1000
     }
 
@@ -533,7 +579,13 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         self.stems
             .values()
             .map(|stem| stem.duration_ms)
-            // .map(|_| duration_override)
+            .map(|duration| {
+                if let Some(duration_override) = DURATION_OVERRIDE {
+                    duration_override
+                } else {
+                    duration
+                }
+            })
             .max()
             .unwrap()
     }
@@ -560,8 +612,10 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let progress_bar = indicatif::ProgressBar::new(self.total_frames() as u64);
 
         for _ in 0..self.total_frames() {
+            context.beat = (context.bpm as f64 * context.ms as f64 / 1000.0 / 60.0) as usize;
+
             for hook in &self.hooks {
-                if (hook.when)(&mut canvas, &mut context, previous_rendered_beat) {
+                if (hook.when)(&canvas, &context, previous_rendered_beat) {
                     (hook.render_function)(&mut canvas, &mut context);
                 }
             }
@@ -569,7 +623,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             let mut later_hooks_to_delete: Vec<usize> = vec![];
 
             for (i, hook) in context.later_hooks.iter().enumerate() {
-                if (hook.when)(&mut canvas, &context, previous_rendered_beat) {
+                if (hook.when)(&canvas, &context, previous_rendered_beat) {
                     (hook.render_function)(&mut canvas, &context);
                     later_hooks_to_delete.push(i);
                 }
@@ -606,8 +660,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
 
             previous_rendered_beat = context.beat.clone();
             context.frame += 1;
-            context.beat = (context.bpm as f32 * context.ms as f32 / 1000.0 / 60.0) as usize;
-            context.ms += (1.0 / (self.fps as f32) * 1000.0) as usize;
+            context.ms += (1.0 / (self.fps as f64) * 1000.0) as usize;
             context.timestamp = format!("{}", milliseconds_to_timestamp(context.ms));
             progress_bar.inc(1);
         }
@@ -753,7 +806,7 @@ fn main() {
         canvas.polygon_vertices_range = min..(max + 1);
     }
 
-    Video::new()
+    Video::<(Anchor, CenterAnchor)>::new()
         .sync_to(AudioSyncPaths {
             stems: "audiosync/stems/",
             landmarks: "audiosync/landmarks.json",
@@ -762,7 +815,10 @@ fn main() {
         })
         .set_fps(30)
         .set_initial_canvas(canvas)
-        .on_beat(&|canvas: &mut Canvas, context: &mut Context<()>| {
+        .init(&|canvas: _, context: _| {
+            context.u = (canvas.random_anchor(), canvas.random_center_anchor());
+        })
+        .each_beat(&|canvas: _, context: _| {
             canvas.clear();
             canvas.set_background(if context.beat % 2 == 0 {
                 Color::Black
@@ -772,97 +828,86 @@ fn main() {
             canvas.add_object(
                 "beatdot".to_string(),
                 (
-                    Object::BigCircle(CenterAnchor(7, 4)),
+                    Object::BigCircle(context.u.1),
                     Some(Fill::Solid(Color::Cyan)),
                 ),
             );
-            context.later_ms(200, &|canvas: &mut Canvas, _| {
+            context.later_frames(5, &|canvas: &mut Canvas, _| {
                 canvas.remove_object("beatdot");
             });
-            canvas.add_object(
-                "beat".to_string(),
-                (
-                    Object::RawSVG(Box::new(
-                        svg::node::element::Text::new()
-                            .set("x", 100)
-                            .set("y", 100)
-                            .set("font-size", 100)
-                            .set("fill", "white")
-                            .set("font-family", "monospace")
-                            .add(svg::node::Text::new(format!("{}", context.beat))),
-                    )),
-                    None,
-                ),
-            );
         })
-        .on_tick(&|canvas: &mut Canvas, context: &mut Context<()>| {
+        .each_frame(&|canvas: _, context: _| {
             // println!(
             //     "frame {} @ {} beat {}",
             //     context.frame, context.timestamp, context.beat
             // );
-            canvas.remove_object("time");
-            canvas.add_object(
-                "time".to_string(),
-                (
-                    Object::RawSVG(Box::new(
-                        svg::node::element::Text::new()
-                            .set("x", 100)
-                            .set("y", 200)
-                            .set("font-size", 50)
-                            .set("fill", "white")
-                            .set("font-family", "monospace")
-                            .add(svg::node::Text::new(format!("{}", context.timestamp))),
-                    )),
-                    None,
-                ),
-            );
+            if true {
+                canvas.remove_object("time");
+                canvas.add_object(
+                    "time".to_string(),
+                    (
+                        Object::RawSVG(Box::new(
+                            svg::node::element::Text::new()
+                                .set("x", 100)
+                                .set("y", 200)
+                                .set("font-size", 50)
+                                .set("fill", "white")
+                                .set("font-family", "monospace")
+                                .add(svg::node::Text::new(format!("{:04} &bull; {}", context.frame, context.timestamp))),
+                        )),
+                        None,
+                    ),
+                );
+                let float_beat = context.bpm as f64 * context.ms as f64 / 1000.0 / 60.0;
+                canvas.add_object(
+                    "floatbeat".to_string(),
+                    (
+                        Object::RawSVG(Box::new(
+                            svg::node::element::Text::new()
+                                .set("x", 100)
+                                .set("y", 250)
+                                .set("font-size", 30)
+                                .set("fill", "white")
+                                .set("font-family", "monospace")
+                                .add(svg::node::Text::new(format!("beat {} ({})", context.beat, float_beat))),
+                        )),
+                        None,
+                    ),
+                );
+                canvas.remove_object("smallinfo");
+                canvas.add_object(
+                    "smallinfo".to_string(),
+                    (
+                        Object::RawSVG(Box::new(
+                            svg::node::element::Text::new()
+                                .set("x", 100)
+                                .set("y", 300)
+                                .set("font-size", 15)
+                                .set("fill", "white")
+                                .set("font-family", "monospace")
+                                .add(svg::node::Text::new(format!(
+                                    "bpm {} duration {} current ms {}",
+                                    context.bpm,
+                                    milliseconds_to_timestamp(context.duration_ms()),
+                                    context.ms,
+                                ))),
+                        )),
+                        None,
+                    ),
+                )
+            }
             canvas.remove_object("kickcircle");
             if context.stem("kick").amplitude_relative() > 0.5 {
                 canvas.add_object(
                     "kickcircle".to_string(),
                     (
-                        Object::SmallCircle(Anchor(8, 4)),
+                        Object::SmallCircle(context.u.0),
                         Some(Fill::Solid(Color::Yellow)),
                     ),
                 );
             }
-            let float_beat = context.bpm as f32 * context.ms as f32 / 1000.0 / 60.0;
-            canvas.add_object(
-                "floatbeat".to_string(),
-                (
-                    Object::RawSVG(Box::new(
-                        svg::node::element::Text::new()
-                            .set("x", 100)
-                            .set("y", 250)
-                            .set("font-size", 30)
-                            .set("fill", "white")
-                            .set("font-family", "monospace")
-                            .add(svg::node::Text::new(format!("beat {}", float_beat))),
-                    )),
-                    None,
-                ),
-            );
-            canvas.add_object(
-                "staticinfo".to_string(),
-                (
-                    Object::RawSVG(Box::new(
-                        svg::node::element::Text::new()
-                            .set("x", 100)
-                            .set("y", 300)
-                            .set("font-size", 15)
-                            .set("fill", "white")
-                            .set("font-family", "monospace")
-                            .add(svg::node::Text::new(format!(
-                                "bpm {} duration {}",
-                                context.bpm,
-                                milliseconds_to_timestamp(context.duration_ms()),
-                            ))),
-                    )),
-                    None,
-                ),
-            )
         })
-        .on("start credits", &|canvas: &mut Canvas, _| {
+        .on("start credits", &|canvas, _| {
             canvas.add_object(
                 "credits text".to_string(),
                 (
@@ -871,7 +916,7 @@ fn main() {
                 ),
             );
         })
-        .on("end credits", &|canvas: &mut Canvas, _| {
+        .on("end credits", &|canvas, _| {
             canvas.remove_object("credits text");
         })
         // .command("add", vec!["name", "shape", "color", "at"], &|arguments: Vec<&str>, canvas: &mut Canvas, context: &mut Context| {
@@ -1131,10 +1176,10 @@ enum Object {
     RawSVG(Box<dyn svg::Node>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct Anchor(i32, i32);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct CenterAnchor(i32, i32);
 
 trait Coordinates {
