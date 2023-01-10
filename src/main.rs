@@ -154,7 +154,7 @@ struct Context<'a, AdditionalContext = ()> {
     u: AdditionalContext,
 }
 
-const DURATION_OVERRIDE: Option<usize> = Some(20 * 1000);
+const DURATION_OVERRIDE: Option<usize> = None;
 
 trait GetOrDefault {
     type Item;
@@ -397,7 +397,6 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             let mut last_frame = 0;
             for (i, sample) in reader.samples::<i16>().enumerate() {
                 let sample = sample.unwrap();
-                // println!("Reading sample {} is {}", i, sample);
                 if sample_to_frame(i) > last_frame {
                     amplitude_db.push(current_amplitude_sum / current_amplitude_buffer_size as f32);
                     current_amplitude_sum = 0.0;
@@ -605,14 +604,21 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
 
         let mut canvas = self.initial_canvas.clone();
         let mut previous_rendered_beat = 0;
+        let mut previous_rendered_frame = 0;
 
         remove_dir_all(self.frames_output_directory.clone()).unwrap();
         create_dir(self.frames_output_directory.clone()).unwrap();
 
         let progress_bar = indicatif::ProgressBar::new(self.total_frames() as u64);
 
-        for _ in 0..self.total_frames() {
-            context.beat = (context.bpm as f64 * context.ms as f64 / 1000.0 / 60.0) as usize;
+        for _ in 0..self.duration_ms() {
+            context.ms += 1 as usize;
+            context.beat = ((context.bpm * context.ms) as f64 / (1000.0 * 60.0)) as usize;
+            context.frame = (context.ms as f64 * self.fps as f64 / 1000.0) as usize;
+
+            if context.frame == previous_rendered_frame {
+                continue;
+            }
 
             for hook in &self.hooks {
                 if (hook.when)(&canvas, &context, previous_rendered_beat) {
@@ -658,9 +664,8 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 panic!("Failed to build frame: {}", e);
             }
 
-            previous_rendered_beat = context.beat.clone();
-            context.frame += 1;
-            context.ms += (1.0 / (self.fps as f64) * 1000.0) as usize;
+            previous_rendered_beat = context.beat;
+            previous_rendered_frame = context.frame;
             context.timestamp = format!("{}", milliseconds_to_timestamp(context.ms));
             progress_bar.inc(1);
         }
@@ -853,7 +858,10 @@ fn main() {
                                 .set("font-size", 50)
                                 .set("fill", "white")
                                 .set("font-family", "monospace")
-                                .add(svg::node::Text::new(format!("{:04} &bull; {}", context.frame, context.timestamp))),
+                                .add(svg::node::Text::new(format!(
+                                    "{:04} &bull; {}",
+                                    context.frame, context.timestamp
+                                ))),
                         )),
                         None,
                     ),
@@ -869,7 +877,10 @@ fn main() {
                                 .set("font-size", 30)
                                 .set("fill", "white")
                                 .set("font-family", "monospace")
-                                .add(svg::node::Text::new(format!("beat {} ({})", context.beat, float_beat))),
+                                .add(svg::node::Text::new(format!(
+                                    "beat {} ({})",
+                                    context.beat, float_beat
+                                ))),
                         )),
                         None,
                     ),
