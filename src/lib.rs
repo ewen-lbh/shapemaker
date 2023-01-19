@@ -246,26 +246,12 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
     }
 
     pub fn build_frame(&self, canvas: &mut Canvas, frame_no: usize) -> Result<(), String> {
-        let mut spawned = std::process::Command::new("convert")
-            .arg("-")
-            .arg(format!(
-                "{}/{:0width$}.png",
-                self.frames_output_directory,
-                frame_no,
-                width = self.total_frames().to_string().len()
-            ))
-            .stdin(std::process::Stdio::piped())
-            .spawn()
-            .unwrap();
-
-        let stdin = spawned.stdin.as_mut().unwrap();
-        stdin.write_all(canvas.render().as_bytes()).unwrap();
-        drop(stdin);
-
-        match spawned.wait_with_output() {
-            Ok(_) => Ok(()),
-            Err(e) => Err(format!("Failed to execute convert: {}", e)),
-        }
+        canvas.save_as_png(&format!(
+            "{}/{:0width$}.png",
+            self.frames_output_directory,
+            frame_no,
+            width = self.total_frames().to_string().len()
+        ))
     }
 
     pub fn set_fps(self, fps: usize) -> Self {
@@ -858,6 +844,24 @@ impl Canvas {
             objects: HashMap::new(),
         };
         self.remove_background()
+    }
+
+    pub fn save_as_png(&mut self, at: &str) -> Result<(), String> {
+        let mut spawned = std::process::Command::new("convert")
+            .arg("-")
+            .arg(at)
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let stdin = spawned.stdin.as_mut().unwrap();
+        stdin.write_all(self.render().as_bytes()).unwrap();
+        drop(stdin);
+
+        match spawned.wait_with_output() {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Failed to execute convert: {}", e)),
+        }
     }
 }
 
