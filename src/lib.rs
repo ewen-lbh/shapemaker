@@ -96,7 +96,7 @@ pub struct Context<'a, AdditionalContext = ()> {
     pub stems: &'a HashMap<String, Stem>,
     pub markers: &'a HashMap<usize, String>, // milliseconds -> marker text
     pub later_hooks: Vec<LaterHook<AdditionalContext>>,
-    pub u: AdditionalContext,
+    pub extra: AdditionalContext,
 }
 
 const DURATION_OVERRIDE: Option<usize> = Some(4 * 1000);
@@ -437,41 +437,34 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 if previous_rendered_frame == context.frame {
                     return false;
                 }
-                let mut precision = "";
-                let mut criteria_time = NaiveDateTime::default();
-                if let Ok(criteria_time_parsed) =
-                    NaiveDateTime::parse_from_str(timestamp, "%H:%M:%S%.3f")
-                {
-                    precision = "milliseconds";
-                    criteria_time = criteria_time_parsed;
-                } else if let Ok(criteria_time_parsed) =
-                    NaiveDateTime::parse_from_str(timestamp, "%M:%S%.3f")
-                {
-                    precision = "milliseconds";
-                    criteria_time = criteria_time_parsed;
-                } else if let Ok(criteria_time_parsed) =
-                    NaiveDateTime::parse_from_str(timestamp, "%S%.3f")
-                {
-                    precision = "milliseconds";
-                    criteria_time = criteria_time_parsed;
-                } else if let Ok(criteria_time_parsed) =
-                    NaiveDateTime::parse_from_str(timestamp, "%S")
-                {
-                    precision = "seconds";
-                    criteria_time = criteria_time_parsed;
-                } else if let Ok(criteria_time_parsed) =
-                    NaiveDateTime::parse_from_str(timestamp, "%M:%S")
-                {
-                    precision = "seconds";
-                    criteria_time = criteria_time_parsed;
-                } else if let Ok(criteria_time_parsed) =
-                    NaiveDateTime::parse_from_str(timestamp, "%H:%M:%S")
-                {
-                    precision = "seconds";
-                    criteria_time = criteria_time_parsed;
-                } else {
-                    panic!("Unhandled timestamp format: {}", timestamp);
-                }
+                let (precision, criteria_time): (&str, NaiveDateTime) =
+                    if let Ok(criteria_time_parsed) =
+                        NaiveDateTime::parse_from_str(timestamp, "%H:%M:%S%.3f")
+                    {
+                        ("milliseconds", criteria_time_parsed)
+                    } else if let Ok(criteria_time_parsed) =
+                        NaiveDateTime::parse_from_str(timestamp, "%M:%S%.3f")
+                    {
+                        ("milliseconds", criteria_time_parsed)
+                    } else if let Ok(criteria_time_parsed) =
+                        NaiveDateTime::parse_from_str(timestamp, "%S%.3f")
+                    {
+                        ("milliseconds", criteria_time_parsed)
+                    } else if let Ok(criteria_time_parsed) =
+                        NaiveDateTime::parse_from_str(timestamp, "%S")
+                    {
+                        ("seconds", criteria_time_parsed)
+                    } else if let Ok(criteria_time_parsed) =
+                        NaiveDateTime::parse_from_str(timestamp, "%M:%S")
+                    {
+                        ("seconds", criteria_time_parsed)
+                    } else if let Ok(criteria_time_parsed) =
+                        NaiveDateTime::parse_from_str(timestamp, "%H:%M:%S")
+                    {
+                        ("seconds", criteria_time_parsed)
+                    } else {
+                        panic!("Unhandled timestamp format: {}", timestamp);
+                    };
                 match precision {
                     "milliseconds" => {
                         let current_time: NaiveDateTime =
@@ -534,7 +527,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             bpm: self.bpm,
             stems: &self.stems,
             markers: &self.markers,
-            u: AdditionalContext::default(),
+            extra: AdditionalContext::default(),
             later_hooks: vec![],
         };
 

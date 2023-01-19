@@ -65,7 +65,7 @@ fn main() {
         .set_fps(30)
         .set_initial_canvas(canvas)
         .init(&|canvas: _, context: _| {
-            context.u = (canvas.random_anchor(), canvas.random_center_anchor());
+            context.extra = (canvas.random_anchor(), canvas.random_center_anchor());
         })
         .each_beat(&|canvas: _, context: _| {
             canvas.set_background(if context.beat % 2 == 0 {
@@ -76,7 +76,7 @@ fn main() {
             canvas.add_object(
                 "beatdot",
                 (
-                    Object::BigCircle(context.u.1),
+                    Object::BigCircle(context.extra.1),
                     Some(Fill::Solid(Color::Cyan)),
                 ),
             );
@@ -152,7 +152,7 @@ fn main() {
                 canvas.add_object(
                     "kickcircle",
                     (
-                        Object::SmallCircle(context.u.0),
+                        Object::SmallCircle(context.extra.0),
                         Some(Fill::Solid(Color::Yellow)),
                     ),
                 );
