@@ -188,12 +188,12 @@ impl<'a, C> Context<'a, C> {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct AudioSyncPaths {
-    pub stems: &'static str,
-    pub landmarks: &'static str,
-    pub complete: &'static str,
-    pub bpm: &'static str,
+    pub stems: String,
+    pub landmarks: String,
+    pub complete: String,
+    pub bpm: String,
 }
 
 impl<AdditionalContext: Default> Video<AdditionalContext> {
@@ -221,7 +221,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             .arg("-i")
             .arg(format!("{}/*.png", self.frames_output_directory))
             .arg("-i")
-            .arg(self.audio_paths.complete)
+            .arg(self.audio_paths.complete.clone())
             .args([
                 "-c:a",
                 "copy",
@@ -265,9 +265,9 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         }
     }
 
-    pub fn sync_to(self, audio: AudioSyncPaths) -> Self {
+    pub fn sync_to(self, audio: &AudioSyncPaths) -> Self {
         // Read BPM from file
-        let bpm = std::fs::read_to_string(audio.bpm)
+        let bpm = std::fs::read_to_string(audio.bpm.clone())
             .map_err(|e| format!("Failed to read BPM file: {}", e))
             .and_then(|bpm| {
                 bpm.trim()
@@ -278,7 +278,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             .unwrap();
 
         // Read landmakrs from JSON file
-        let markers = std::fs::read_to_string(audio.landmarks)
+        let markers = std::fs::read_to_string(audio.landmarks.clone())
             .map_err(|e| format!("Failed to read landmarks file: {}", e))
             .and_then(|landmarks| {
                 match serde_json::from_str::<HashMap<String, String>>(&landmarks)
@@ -298,7 +298,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
 
         // Read all WAV stem files: get their duration and amplitude per millisecond
         let mut stems: HashMap<String, Stem> = HashMap::new();
-        for entry in std::fs::read_dir(audio.stems)
+        for entry in std::fs::read_dir(audio.stems.clone())
             .map_err(|e| format!("Failed to read stems directory: {}", e))
             .unwrap()
             .filter(|e| match e {
@@ -354,7 +354,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         }
 
         Self {
-            audio_paths: audio,
+            audio_paths: audio.clone(),
             markers,
             bpm,
             stems,

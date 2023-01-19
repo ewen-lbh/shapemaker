@@ -16,7 +16,7 @@ const USAGE: &'static str = "
 █▄▄▄█▄██▄█▄██▄█░████▄▄▄█▄███▄█▄██▄█▄█▄█▄▄▄█▄█▄▄█
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀vVERSION▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 
-Usage: shapemaker [options] [--color <mapping>...] <file>
+Usage: shapemaker (image|video) [options] [--color <mapping>...] <file>
        shapemaker --help
        shapemaker --version
     
@@ -38,6 +38,15 @@ Options:
 
         Note: <range>s are inclusive on both ends
     
+    Video-specific:
+    --fps <fps>                    Frames per second [default: 30]
+    --sync-to <directory>          Directory containing the audio files to sync to.
+                                   The directory must contain:
+                                   - stems/(instrument name).wav — stems
+                                   - landmarks.json — JSON file mapping time in milliseconds to marker text (see ./landmarks.py)
+                                   - full.mp3 — the complete audio file to use as the video's audio
+                                   - bpm.txt — the BPM of the audio file (see ./landmarks.py)
+    
 
 ";
 
@@ -55,14 +64,22 @@ fn main() {
     canvas.colormap = load_colormap(&args);
     set_canvas_settings_from_args(&args, &mut canvas);
 
+    if args.cmd_image {
+        canvas.set_shape(canvas.random_shape("main"));
+        canvas.save_as_png(&args.arg_file);
+        return;
+    }
+
+    let audiosync_dir = args.flag_sync_to.unwrap_or("audiosync".to_string());
+
     Video::<(Anchor, CenterAnchor)>::new()
-        .sync_to(AudioSyncPaths {
-            stems: "audiosync/stems/",
-            landmarks: "audiosync/landmarks.json",
-            complete: "audiosync/sample.mp3",
-            bpm: "audiosync/bpm.txt",
+        .sync_to(&AudioSyncPaths {
+            stems: audiosync_dir.clone() + "/stems/",
+            landmarks: audiosync_dir.clone() + "/landmarks.json",
+            complete: audiosync_dir.clone() + "/full.mp3",
+            bpm: audiosync_dir.clone() + "/bpm.txt",
         })
-        .set_fps(30)
+        .set_fps(args.flag_fps.unwrap_or(30))
         .set_initial_canvas(canvas)
         .init(&|canvas: _, context: _| {
             context.extra = (canvas.random_anchor(), canvas.random_center_anchor());
@@ -80,7 +97,6 @@ fn main() {
                     Some(Fill::Solid(Color::Cyan)),
                 ),
             );
-            println!("adding hook for frame {}", context.frame + 5);
             context.later_frames(5, &|canvas: &mut Canvas, _| {
                 canvas.remove_object("beatdot");
             });
@@ -186,6 +202,8 @@ fn main() {
 
 #[derive(Debug, Deserialize)]
 struct Args {
+    cmd_image: bool,
+    cmd_video: bool,
     arg_file: String,
     flag_version: bool,
     flag_color: Vec<String>,
@@ -200,6 +218,8 @@ struct Args {
     flag_render_grid: bool,
     flag_objects_count: Option<String>,
     flag_polygon_vertices: Option<String>,
+    flag_fps: Option<usize>,
+    flag_sync_to: Option<String>,
 }
 
 fn set_canvas_settings_from_args(args: &Args, canvas: &mut Canvas) {
