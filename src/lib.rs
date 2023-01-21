@@ -2,11 +2,14 @@ use chrono::NaiveDateTime;
 use rand::Rng;
 use serde::Deserialize;
 use serde_json;
+use std::cmp::min;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::Formatter;
 use std::fs::{create_dir, remove_dir_all, File};
 use std::io::{BufReader, Write};
-use std::ops::Range;
+use std::ops::{Add, Range};
+use std::sync::{Arc, Mutex};
+use std::thread::{self, JoinHandle};
 
 pub type RenderFunction<C> = dyn Fn(&mut Canvas, &mut Context<C>);
 pub type CommandAction<C> = dyn Fn(String, &mut Canvas, &mut Context<C>);
@@ -101,7 +104,7 @@ pub struct Context<'a, AdditionalContext = ()> {
     pub extra: AdditionalContext,
 }
 
-const DURATION_OVERRIDE: Option<usize> = Some(4 * 1000);
+const DURATION_OVERRIDE: Option<usize> = Some(30 * 1000);
 
 pub trait GetOrDefault {
     type Item;
@@ -257,16 +260,36 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         }
     }
 
-    pub fn build_frame(&self, canvas: &mut Canvas, frame_no: usize) -> Result<(), String> {
-        canvas.save_as_png(
+    fn build_frame(
+        svg_string: String,
+        frame_no: usize,
+        total_frames: usize,
+        frames_output_directory: &str,
+        aspect_ratio: f32,
+        resolution: usize,
+    ) -> Result<(), String> {
+        Canvas::save_as_png(
             &format!(
                 "{}/{:0width$}.png",
-                self.frames_output_directory,
+                frames_output_directory,
                 frame_no,
-                width = self.total_frames().to_string().len()
+                width = total_frames.to_string().len()
             ),
-            self.resolution,
+            aspect_ratio,
+            resolution,
+            svg_string,
         )
+    }
+
+    fn add_to_frame_build_pool(
+        &self,
+        frames_to_write: &mut Vec<(String, usize)>,
+        canvas: &mut Canvas,
+        frame_no: usize,
+    ) {
+        let rendered = canvas.render();
+        println!("main thrd: {} rendered", frame_no);
+        frames_to_write.push((rendered, frame_no));
     }
 
     pub fn set_fps(self, fps: usize) -> Self {
@@ -557,7 +580,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             .unwrap()
     }
 
-    pub fn render_to(&self, output_file: String) {
+    pub fn render_to(&self, output_file: String, workers_count: usize) {
         let mut context = Context {
             frame: 0,
             beat: 0,
@@ -575,10 +598,19 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let mut previous_rendered_beat = 0;
         let mut previous_rendered_frame = 0;
 
+        let mut frame_writer_threads = vec![];
+        let mut frames_to_write: Vec<(String, usize)> = vec![];
+
         remove_dir_all(self.frames_output_directory.clone()).unwrap();
         create_dir(self.frames_output_directory.clone()).unwrap();
 
-        let progress_bar = indicatif::ProgressBar::new(self.duration_ms() as u64);
+        let progress_bar = indicatif::ProgressBar::new(self.total_frames() as u64).with_style(
+            indicatif::ProgressStyle::with_template("{spinner:.cyan} {percent:03.bold.cyan}% [{bar:100.bold.blue/dim.blue}] {eta:.cyan} ({pos:.bold} frames out of {len})").unwrap().progress_chars("== "),
+        );
+        let total_frames = self.total_frames();
+        let aspect_ratio = canvas.grid_size.0 as f32 / canvas.grid_size.1 as f32;
+        let resolution = self.resolution;
+        let frames_output_directory = self.frames_output_directory.clone();
 
         for _ in 0..self.duration_ms() {
             context.ms += 1 as usize;
@@ -637,15 +669,43 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             }
 
             if context.frame != previous_rendered_frame {
-                if let Err(e) = self.build_frame(&mut canvas, context.frame) {
-                    panic!("Failed to build frame: {}", e);
-                }
-
+                let rendered = canvas.render();
+                println!("main thrd: {} rendered", context.frame);
+                frames_to_write.push((rendered, context.frame));
                 previous_rendered_beat = context.beat;
                 previous_rendered_frame = context.frame;
             }
+        }
 
-            progress_bar.inc(1);
+        let chunk_size = (frames_to_write.len() as f32 / workers_count as f32).ceil() as usize;
+        let frames_to_write = Arc::new(frames_to_write);
+        for i in 0..workers_count {
+            let frames_to_write = Arc::clone(&frames_to_write);
+            let progress_bar = progress_bar.clone();
+            frame_writer_threads.push(
+                thread::Builder::new()
+                    .name(format!("worker-{}", i))
+                    .spawn(move || {
+                        for (frame_svg, frame_no) in &frames_to_write
+                            [i * chunk_size..min((i + 1) * chunk_size, frames_to_write.len())]
+                        {
+                            Video::<AdditionalContext>::build_frame(
+                                frame_svg.clone(),
+                                *frame_no,
+                                total_frames,
+                                frames_output_directory,
+                                aspect_ratio,
+                                resolution,
+                            );
+                            progress_bar.inc(1);
+                        }
+                    })
+                    .unwrap(),
+            );
+        }
+
+        for handle in frame_writer_threads {
+            handle.join().unwrap();
         }
 
         progress_bar.finish();
@@ -883,8 +943,12 @@ impl Canvas {
         self.remove_background()
     }
 
-    pub fn save_as_png(&mut self, at: &str, resolution: usize) -> Result<(), String> {
-        let aspect_ratio = self.grid_size.0 as f32 / self.grid_size.1 as f32;
+    pub fn save_as_png(
+        at: &str,
+        aspect_ratio: f32,
+        resolution: usize,
+        rendered: String,
+    ) -> Result<(), String> {
         let (height, width) = if aspect_ratio > 1.0 {
             // landscape: resolution is width
             (resolution, (resolution as f32 * aspect_ratio) as usize)
@@ -901,7 +965,7 @@ impl Canvas {
             .unwrap();
 
         let stdin = spawned.stdin.as_mut().unwrap();
-        stdin.write_all(self.render().as_bytes()).unwrap();
+        stdin.write_all(rendered.as_bytes()).unwrap();
         drop(stdin);
 
         match spawned.wait_with_output() {

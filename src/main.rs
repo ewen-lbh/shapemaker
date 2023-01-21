@@ -40,6 +40,7 @@ Options:
         Note: <range>s are inclusive on both ends
     
     Video-specific:
+    --workers <number>             Number of parallel threads to use for rendering [default: 8]
     --fps <fps>                    Frames per second [default: 30]
     --sync-to <directory>          Directory containing the audio files to sync to.
                                    The directory must contain:
@@ -67,7 +68,13 @@ fn main() {
 
     if args.cmd_image && !args.cmd_video {
         canvas.set_shape(canvas.random_shape("main"));
-        match canvas.save_as_png(&args.arg_file, args.flag_resolution.unwrap_or(1000)) {
+        let aspect_ratio = canvas.grid_size.0 as f32 / canvas.grid_size.1 as f32;
+        match Canvas::save_as_png(
+            &args.arg_file,
+            aspect_ratio,
+            args.flag_resolution.unwrap_or(1000),
+            canvas.render(),
+        ) {
             Ok(_) => println!("Image saved to {}", args.arg_file),
             Err(e) => println!("Error saving image: {}", e),
         }
@@ -211,7 +218,7 @@ fn main() {
             let args = argumentsline.splitn(3, ' ').collect::<Vec<_>>();
             canvas.remove_object(args[0]);
         })
-        .render_to(args.arg_file);
+        .render_to(args.arg_file, args.flag_workers.unwrap_or(8));
 }
 
 #[derive(Debug, Deserialize)]
@@ -235,6 +242,7 @@ struct Args {
     flag_fps: Option<usize>,
     flag_sync_to: Option<String>,
     flag_resolution: Option<usize>,
+    flag_workers: Option<usize>,
 }
 
 fn set_canvas_settings_from_args(args: &Args, canvas: &mut Canvas) {
