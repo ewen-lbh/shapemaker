@@ -101,100 +101,37 @@ fn main() {
             );
             canvas.set_background(context.extra.3);
         })
-        .each_beat(&|canvas: _, context: _| {
-            canvas.add_object(
-                "beatdot",
-                (
-                    Object::BigCircle(context.extra.1),
-                    Some(Fill::Solid(Color::Cyan)),
-                ),
-            );
-            context.later_beats(0.5, &|canvas: &mut Canvas, _| {
-                canvas.remove_object("beatdot");
-            });
+        .each_beat(&|canvas, _| {
+            canvas.set_background(canvas.random_color());
         })
-        .every(0.5, Beats, &|canvas, context| {
-            canvas.add_object(
-                "halfbeat",
-                (canvas.random_polygon(), Some(Fill::Solid(context.extra.2))),
-            );
-            context.later_beats(0.25, &|canvas, _| {
-                canvas.remove_object("halfbeat");
-            })
-        })
-        /*.each_frame(&|canvas: _, context: _| {
-            if true {
-                canvas.remove_object("time");
+        .on_stem(
+            "kick",
+            0.7,
+            &|canvas, context| {
                 canvas.add_object(
-                    "time",
+                    "kick",
                     (
-                        Object::RawSVG(Box::new(
-                            svg::node::element::Text::new()
-                                .set("x", 100)
-                                .set("y", 200)
-                                .set("font-size", 50)
-                                .set("fill", "white")
-                                .set("font-family", "monospace")
-                                .add(svg::node::Text::new(format!(
-                                    "{:04} &bull; {}",
-                                    context.frame, context.timestamp
-                                ))),
-                        )),
-                        None,
-                    ),
-                );
-                let float_beat = context.bpm as f64 * context.ms as f64 / 1000.0 / 60.0;
-                canvas.add_object(
-                    "floatbeat",
-                    (
-                        Object::RawSVG(Box::new(
-                            svg::node::element::Text::new()
-                                .set("x", 100)
-                                .set("y", 250)
-                                .set("font-size", 30)
-                                .set("fill", "white")
-                                .set("font-family", "monospace")
-                                .add(svg::node::Text::new(format!(
-                                    "beat {} ({})",
-                                    context.beat, float_beat
-                                ))),
-                        )),
-                        None,
-                    ),
-                );
-                canvas.remove_object("smallinfo");
-                canvas.add_object(
-                    "smallinfo",
-                    (
-                        Object::RawSVG(Box::new(
-                            svg::node::element::Text::new()
-                                .set("x", 100)
-                                .set("y", 300)
-                                .set("font-size", 15)
-                                .set("fill", "white")
-                                .set("font-family", "monospace")
-                                .add(svg::node::Text::new(format!(
-                                    "bpm {} duration {} current ms {}",
-                                    context.bpm,
-                                    milliseconds_to_timestamp(context.duration_ms()),
-                                    context.ms,
-                                ))),
-                        )),
-                        None,
+                        Object::BigCircle(context.extra.1),
+                        Some(Fill::Solid(Color::Cyan)),
                     ),
                 )
-            }
-            canvas.remove_object("kickcircle");
-            if context.stem("kick").amplitude_relative() > 0.5 {
+            },
+            &|canvas, _| canvas.remove_object("kick"),
+        )
+        .on_stem(
+            "clap",
+            0.7,
+            &|canvas, _| {
                 canvas.add_object(
-                    "kickcircle",
+                    "clap",
                     (
-                        Object::SmallCircle(context.extra.0),
-                        Some(Fill::Solid(Color::Yellow)),
+                        canvas.random_polygon(),
+                        Some(Fill::Solid(canvas.random_color())),
                     ),
                 );
-            }
-        }) */
+            },
+            &|_, _| {},
+        )
         .on("start credits", &|canvas, _| {
             canvas.add_object(
                 "credits text",

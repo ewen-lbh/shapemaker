@@ -475,6 +475,29 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         Self { hooks, ..self }
     }
 
+    pub fn on_stem(
+        self,
+        stem_name: &'static str,
+        threshold: f32,
+        above_amplitude: &'static RenderFunction<AdditionalContext>,
+        below_amplitude: &'static RenderFunction<AdditionalContext>,
+    ) -> Self {
+        let mut hooks = self.hooks;
+        hooks.push(Hook {
+            when: Box::new(move |_, context, _, _| {
+                context.stem(stem_name).amplitude_relative() > threshold
+            }),
+            render_function: Box::new(above_amplitude),
+        });
+        hooks.push(Hook {
+            when: Box::new(move |_, context, _, _| {
+                context.stem(stem_name).amplitude_relative() <= threshold
+            }),
+            render_function: Box::new(below_amplitude),
+        });
+        Self { hooks, ..self }
+    }
+
     pub fn at_frame(
         self,
         frame: usize,
