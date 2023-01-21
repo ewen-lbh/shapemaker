@@ -1279,7 +1279,7 @@ impl Canvas {
                 .set("height", canvas_height)
                 .set("fill", background_color.to_string(&self.colormap)),
         );
-        for (id, (object, maybe_fill)) in &self.shape.objects {
+        for (_id, (object, maybe_fill)) in &self.shape.objects {
             let mut group = svg::node::element::Group::new();
             match object {
                 Object::RawSVG(svg) => {

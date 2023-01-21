@@ -2,8 +2,8 @@ use docopt::Docopt;
 use serde::Deserialize;
 use serde_json;
 use shapemaker::{
-    milliseconds_to_timestamp, Anchor, AudioSyncPaths, Canvas, CenterAnchor, Color, ColorMapping,
-    Context, Fill, MusicalDurationUnit::*, Object, Parsable, Video,
+    Anchor, AudioSyncPaths, Canvas, CenterAnchor, Color, ColorMapping, Fill,
+    MusicalDurationUnit::*, Object, Parsable, Video,
 };
 use std::collections::HashMap;
 use std::fs::File;
@@ -65,9 +65,12 @@ fn main() {
     canvas.colormap = load_colormap(&args);
     set_canvas_settings_from_args(&args, &mut canvas);
 
-    if args.cmd_image {
+    if args.cmd_image && !args.cmd_video {
         canvas.set_shape(canvas.random_shape("main"));
-        canvas.save_as_png(&args.arg_file, args.flag_resolution.unwrap_or(1000));
+        match canvas.save_as_png(&args.arg_file, args.flag_resolution.unwrap_or(1000)) {
+            Ok(_) => println!("Image saved to {}", args.arg_file),
+            Err(e) => println!("Error saving image: {}", e),
+        }
         return;
     }
 
@@ -108,7 +111,7 @@ fn main() {
                 "halfbeat",
                 (canvas.random_polygon(), Some(Fill::Solid(context.extra.2))),
             );
-            context.later_beats(0.25, &|canvas, ctx| {
+            context.later_beats(0.25, &|canvas, _| {
                 canvas.remove_object("halfbeat");
             })
         })
