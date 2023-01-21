@@ -31,6 +31,7 @@ pub struct Video<C> {
     pub bpm: usize,
     pub markers: HashMap<usize, String>,
     pub stems: HashMap<String, Stem>,
+    pub resolution: usize,
 }
 
 pub struct Hook<C> {
@@ -90,6 +91,7 @@ impl<C> std::fmt::Debug for Command<C> {
 pub struct Context<'a, AdditionalContext = ()> {
     pub frame: usize,
     pub beat: usize,
+    pub beat_fractional: f32,
     pub timestamp: String,
     pub ms: usize,
     pub bpm: usize,
@@ -173,14 +175,14 @@ impl<'a, C> Context<'a, C> {
         );
     }
 
-    pub fn later_beats(&mut self, delay: usize, render_function: &'static LaterRenderFunction<C>) {
+    pub fn later_beats(&mut self, delay: f32, render_function: &'static LaterRenderFunction<C>) {
         let current_beat = self.beat;
 
         self.later_hooks.insert(
             0,
             LaterHook {
                 when: Box::new(move |_, context, _previous_beat| {
-                    context.beat >= current_beat + delay
+                    context.beat_fractional >= current_beat as f32 + delay
                 }),
                 render_function: Box::new(render_function),
             },
@@ -196,6 +198,15 @@ pub struct AudioSyncPaths {
     pub bpm: String,
 }
 
+pub enum MusicalDurationUnit {
+    Beats,
+    Halfs,
+    Thirds,
+    Quarters,
+    Eighths,
+    Sixteenths,
+}
+
 impl<AdditionalContext: Default> Video<AdditionalContext> {
     pub fn new() -> Self {
         Self {
@@ -207,6 +218,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             audio_paths: AudioSyncPaths::default(),
             frames_output_directory: "audiosync/frames/",
             bpm: 0,
+            resolution: 1000,
             markers: HashMap::new(),
             stems: HashMap::new(),
         }
@@ -246,12 +258,15 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
     }
 
     pub fn build_frame(&self, canvas: &mut Canvas, frame_no: usize) -> Result<(), String> {
-        canvas.save_as_png(&format!(
-            "{}/{:0width$}.png",
-            self.frames_output_directory,
-            frame_no,
-            width = self.total_frames().to_string().len()
-        ))
+        canvas.save_as_png(
+            &format!(
+                "{}/{:0width$}.png",
+                self.frames_output_directory,
+                frame_no,
+                width = self.total_frames().to_string().len()
+            ),
+            self.resolution,
+        )
     }
 
     pub fn set_fps(self, fps: usize) -> Self {
@@ -401,6 +416,30 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         Self { hooks, ..self }
     }
 
+    pub fn every(
+        self,
+        amount: f32,
+        unit: MusicalDurationUnit,
+        render_function: &'static RenderFunction<AdditionalContext>,
+    ) -> Self {
+        let beats = match unit {
+            MusicalDurationUnit::Beats => amount,
+            MusicalDurationUnit::Halfs => amount / 2.0,
+            MusicalDurationUnit::Quarters => amount / 4.0,
+            MusicalDurationUnit::Eighths => amount / 8.0,
+            MusicalDurationUnit::Sixteenths => amount / 16.0,
+            MusicalDurationUnit::Thirds => amount / 3.0,
+        };
+
+        let hook = Hook {
+            when: Box::new(move |_, context, _, _| context.beat_fractional % beats < 0.01),
+            render_function: Box::new(render_function),
+        };
+        let mut hooks = self.hooks;
+        hooks.push(hook);
+        Self { hooks, ..self }
+    }
+
     pub fn each_frame(self, render_function: &'static RenderFunction<AdditionalContext>) -> Self {
         let hook = Hook {
             when: Box::new(move |_, context, _, previous_rendered_frame| {
@@ -522,6 +561,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let mut context = Context {
             frame: 0,
             beat: 0,
+            beat_fractional: 0.0,
             timestamp: "00:00:00.000".to_string(),
             ms: 0,
             bpm: self.bpm,
@@ -538,13 +578,14 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         remove_dir_all(self.frames_output_directory.clone()).unwrap();
         create_dir(self.frames_output_directory.clone()).unwrap();
 
-        let progress_bar = indicatif::ProgressBar::new(self.total_frames() as u64);
+        let progress_bar = indicatif::ProgressBar::new(self.duration_ms() as u64);
 
         for _ in 0..self.duration_ms() {
             context.ms += 1 as usize;
             context.timestamp = format!("{}", milliseconds_to_timestamp(context.ms));
-            context.beat = ((context.bpm * context.ms) as f64 / (1000.0 * 60.0)) as usize;
-            context.frame = (context.ms as f64 * self.fps as f64 / 1000.0) as usize;
+            context.beat_fractional = (context.bpm * context.ms) as f32 / (1000.0 * 60.0);
+            context.beat = context.beat_fractional as usize;
+            context.frame = ((self.fps * context.ms) as f64 / 1000.0) as usize;
 
             if context.marker() != "" {
                 progress_bar.println(format!(
@@ -590,7 +631,9 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             }
 
             for i in later_hooks_to_delete {
-                context.later_hooks.remove(i);
+                if i < context.later_hooks.len() {
+                    context.later_hooks.remove(i);
+                }
             }
 
             if context.frame != previous_rendered_frame {
@@ -600,8 +643,9 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
 
                 previous_rendered_beat = context.beat;
                 previous_rendered_frame = context.frame;
-                progress_bar.inc(1);
             }
+
+            progress_bar.inc(1);
         }
 
         progress_bar.finish();
@@ -839,9 +883,18 @@ impl Canvas {
         self.remove_background()
     }
 
-    pub fn save_as_png(&mut self, at: &str) -> Result<(), String> {
+    pub fn save_as_png(&mut self, at: &str, resolution: usize) -> Result<(), String> {
+        let aspect_ratio = self.grid_size.0 as f32 / self.grid_size.1 as f32;
+        let (height, width) = if aspect_ratio > 1.0 {
+            // landscape: resolution is width
+            (resolution, (resolution as f32 * aspect_ratio) as usize)
+        } else {
+            // portrait: resolution is height
+            ((resolution as f32 / aspect_ratio) as usize, resolution)
+        };
         let mut spawned = std::process::Command::new("convert")
             .arg("-")
+            .args(&["-size", &format!("{}x{}", width, height)])
             .arg(at)
             .stdin(std::process::Stdio::piped())
             .spawn()

@@ -3,7 +3,7 @@ use serde::Deserialize;
 use serde_json;
 use shapemaker::{
     milliseconds_to_timestamp, Anchor, AudioSyncPaths, Canvas, CenterAnchor, Color, ColorMapping,
-    Context, Fill, Object, Parsable, Video,
+    Context, Fill, MusicalDurationUnit::*, Object, Parsable, Video,
 };
 use std::collections::HashMap;
 use std::fs::File;
@@ -21,6 +21,7 @@ Usage: shapemaker (image|video) [options] [--color <mapping>...] <file>
        shapemaker --version
     
 Options:
+    --resolution <pixelcount>      Size of the image (or frames)'s largest dimension in pixels [default: 1000]
     --colors <file>                JSON file mapping color names to hex values
                                    The supported color names are: black, white, red, green, blue, yellow, orange, purple, brown, pink, gray, and cyan.
     -c --color <mapping>           Color mapping in the form of <color>:<hex>. Can be used multiple times.
@@ -66,13 +67,13 @@ fn main() {
 
     if args.cmd_image {
         canvas.set_shape(canvas.random_shape("main"));
-        canvas.save_as_png(&args.arg_file);
+        canvas.save_as_png(&args.arg_file, args.flag_resolution.unwrap_or(1000));
         return;
     }
 
     let audiosync_dir = args.flag_sync_to.unwrap_or("audiosync".to_string());
 
-    Video::<(Anchor, CenterAnchor)>::new()
+    Video::<(Anchor, CenterAnchor, Color, Color)>::new()
         .sync_to(&AudioSyncPaths {
             stems: audiosync_dir.clone() + "/stems/",
             landmarks: audiosync_dir.clone() + "/landmarks.json",
@@ -82,14 +83,15 @@ fn main() {
         .set_fps(args.flag_fps.unwrap_or(30))
         .set_initial_canvas(canvas)
         .init(&|canvas: _, context: _| {
-            context.extra = (canvas.random_anchor(), canvas.random_center_anchor());
+            context.extra = (
+                canvas.random_anchor(),
+                canvas.random_center_anchor(),
+                canvas.random_color(),
+                canvas.random_color(),
+            );
+            canvas.set_background(context.extra.3);
         })
         .each_beat(&|canvas: _, context: _| {
-            canvas.set_background(if context.beat % 2 == 0 {
-                Color::Black
-            } else {
-                Color::Red
-            });
             canvas.add_object(
                 "beatdot",
                 (
@@ -97,11 +99,20 @@ fn main() {
                     Some(Fill::Solid(Color::Cyan)),
                 ),
             );
-            context.later_frames(5, &|canvas: &mut Canvas, _| {
+            context.later_beats(0.5, &|canvas: &mut Canvas, _| {
                 canvas.remove_object("beatdot");
             });
         })
-        .each_frame(&|canvas: _, context: _| {
+        .every(0.5, Beats, &|canvas, context| {
+            canvas.add_object(
+                "halfbeat",
+                (canvas.random_polygon(), Some(Fill::Solid(context.extra.2))),
+            );
+            context.later_beats(0.25, &|canvas, ctx| {
+                canvas.remove_object("halfbeat");
+            })
+        })
+        /*.each_frame(&|canvas: _, context: _| {
             if true {
                 canvas.remove_object("time");
                 canvas.add_object(
@@ -173,7 +184,7 @@ fn main() {
                     ),
                 );
             }
-        })
+        }) */
         .on("start credits", &|canvas, _| {
             canvas.add_object(
                 "credits text",
@@ -220,6 +231,7 @@ struct Args {
     flag_polygon_vertices: Option<String>,
     flag_fps: Option<usize>,
     flag_sync_to: Option<String>,
+    flag_resolution: Option<usize>,
 }
 
 fn set_canvas_settings_from_args(args: &Args, canvas: &mut Canvas) {
