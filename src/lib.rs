@@ -1,4 +1,5 @@
 use chrono::NaiveDateTime;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rand::Rng;
 use serde::Deserialize;
 use serde_json;
@@ -7,9 +8,14 @@ use std::collections::{HashMap, VecDeque};
 use std::fmt::Formatter;
 use std::fs::{create_dir, remove_dir_all, File};
 use std::io::{BufReader, Write};
-use std::ops::{Add, Range};
-use std::sync::{Arc, Mutex};
+use std::ops::{Add, Mul, Range};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
+use std::time;
+
+const PROGRESS_BARS_STYLE: &'static str =
+    "{spinner:.cyan} {percent:03.bold.cyan}% {msg:<30} [{bar:100.bold.blue/dim.blue}] {eta:.cyan}";
 
 pub type RenderFunction<C> = dyn Fn(&mut Canvas, &mut Context<C>);
 pub type CommandAction<C> = dyn Fn(String, &mut Canvas, &mut Context<C>);
@@ -104,7 +110,7 @@ pub struct Context<'a, AdditionalContext = ()> {
     pub extra: AdditionalContext,
 }
 
-const DURATION_OVERRIDE: Option<usize> = Some(30 * 1000);
+const DURATION_OVERRIDE: Option<usize> = Some(4 * 1000);
 
 pub trait GetOrDefault {
     type Item;
@@ -210,6 +216,43 @@ pub enum MusicalDurationUnit {
     Sixteenths,
 }
 
+struct SpinState {
+    pub spinner: ProgressBar,
+    pub finished: Arc<Mutex<bool>>,
+    pub thread: JoinHandle<()>,
+}
+
+impl SpinState {
+    fn start(message: &str) -> Self {
+        let spinner = ProgressBar::new(0).with_style(
+            ProgressStyle::with_template(&("{spinner:.cyan} ".to_owned() + message)).unwrap(),
+        );
+        spinner.tick();
+
+        let thread_spinner = spinner.clone();
+        let finished = Arc::new(Mutex::new(false));
+        let thread_finished = Arc::clone(&finished);
+        let spinner_thread = thread::spawn(move || {
+            while !*thread_finished.lock().unwrap() {
+                thread_spinner.tick();
+                thread::sleep(time::Duration::from_millis(100));
+            }
+            thread_spinner.finish_and_clear();
+        });
+
+        Self {
+            spinner: spinner.clone(),
+            finished: finished,
+            thread: spinner_thread,
+        }
+    }
+    fn end(self, message: &str) {
+        *self.finished.lock().unwrap() = true;
+        self.thread.join().unwrap();
+        println!("{}", message);
+    }
+}
+
 impl<AdditionalContext: Default> Video<AdditionalContext> {
     pub fn new() -> Self {
         Self {
@@ -227,8 +270,9 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         }
     }
 
-    pub fn build_video(&self, render_to: String) -> Result<(), String> {
+    pub fn build_video(&self, render_to: &str) -> Result<(), String> {
         let result = std::process::Command::new("ffmpeg")
+            .args(["-hide_banner", "-loglevel", "error"])
             .arg("-framerate")
             .arg(self.fps.to_string())
             .arg("-pattern_type")
@@ -247,7 +291,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 "yuv420p",
                 "-y",
             ])
-            .arg::<String>(render_to)
+            .arg(render_to)
             .output();
 
         match result {
@@ -304,6 +348,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
     }
 
     pub fn sync_to(self, audio: &AudioSyncPaths) -> Self {
+        let progress_bar_tree = MultiProgress::new();
         // Read BPM from file
         let bpm = std::fs::read_to_string(audio.bpm.clone())
             .map_err(|e| format!("Failed to read BPM file: {}", e))
@@ -336,60 +381,110 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
 
         // Read all WAV stem files: get their duration and amplitude per millisecond
         let mut stems: HashMap<String, Stem> = HashMap::new();
-        for entry in std::fs::read_dir(audio.stems.clone())
+        let mut threads = vec![];
+        let (tx, rx) = mpsc::channel();
+
+        let stem_file_entries: Vec<_> = std::fs::read_dir(audio.stems.clone())
             .map_err(|e| format!("Failed to read stems directory: {}", e))
             .unwrap()
             .filter(|e| match e {
                 Ok(e) => e.path().extension().unwrap_or_default() == "wav",
                 Err(_) => false,
             })
-        {
-            println!(
-                "Reading stem file {}",
-                entry.as_ref().unwrap().path().display()
-            );
-            let entry = entry.unwrap();
-            let path = entry.path();
-            let stem_name = path.file_stem().unwrap().to_str().unwrap();
-            let mut reader = hound::WavReader::open(path.clone())
-                .map_err(|e| format!("Failed to read stem file: {}", e))
-                .unwrap();
-            let spec = reader.spec();
-            let sample_to_frame = |sample: usize| {
-                (sample as f64 / spec.channels as f64 / spec.sample_rate as f64 * self.fps as f64)
-                    as usize
-            };
-            let mut amplitude_db: Vec<f32> = vec![];
-            let mut current_amplitude_sum: f32 = 0.0;
-            let mut current_amplitude_buffer_size: usize = 0;
-            let mut last_frame = 0;
-            for (i, sample) in reader.samples::<i16>().enumerate() {
-                let sample = sample.unwrap();
-                if sample_to_frame(i) > last_frame {
-                    amplitude_db.push(current_amplitude_sum / current_amplitude_buffer_size as f32);
-                    current_amplitude_sum = 0.0;
-                    current_amplitude_buffer_size = 0;
-                    last_frame = sample_to_frame(i);
-                } else {
-                    current_amplitude_sum += sample.abs() as f32;
-                    current_amplitude_buffer_size += 1;
-                }
-            }
-            amplitude_db.push(current_amplitude_sum / current_amplitude_buffer_size as f32);
+            .collect();
 
-            stems.insert(
-                stem_name.to_string(),
-                Stem {
-                    amplitude_max: *amplitude_db
-                        .iter()
-                        .max_by(|a, b| a.partial_cmp(b).unwrap())
-                        .unwrap(),
-                    amplitude_db,
-                    duration_ms: (reader.duration() as f64 / spec.sample_rate as f64 * 1000.0)
-                        as usize,
-                },
+        let main_progress_bar = progress_bar_tree.add(
+            ProgressBar::new(stem_file_entries.len() as u64)
+                .with_style(
+                    ProgressStyle::with_template(
+                        &(PROGRESS_BARS_STYLE.to_owned()
+                            + " ({pos:.bold} stems loaded out of {len})"),
+                    )
+                    .unwrap()
+                    .progress_chars("== "),
+                )
+                .with_message("Loading stems"),
+        );
+
+        main_progress_bar.tick();
+
+        for (i, entry) in stem_file_entries.into_iter().enumerate() {
+            let progress_bar = progress_bar_tree.add(
+                ProgressBar::new(0).with_style(
+                    ProgressStyle::with_template(&("  ".to_owned() + PROGRESS_BARS_STYLE))
+                        .unwrap()
+                        .progress_chars("== "),
+                ),
             );
+            let main_progress_bar = main_progress_bar.clone();
+            let tx = tx.clone();
+            threads.push(thread::spawn(move || {
+                let path = entry.unwrap().path();
+                let stem_name = path.file_stem().unwrap().to_str().unwrap();
+                progress_bar.set_message(format!("Loading \"{}\"", stem_name));
+                let mut reader = hound::WavReader::open(path.clone())
+                    .map_err(|e| format!("Failed to read stem file: {}", e))
+                    .unwrap();
+                let spec = reader.spec();
+                let sample_to_frame = |sample: usize| {
+                    (sample as f64 / spec.channels as f64 / spec.sample_rate as f64
+                        * self.fps as f64) as usize
+                };
+                let mut amplitude_db: Vec<f32> = vec![];
+                let mut current_amplitude_sum: f32 = 0.0;
+                let mut current_amplitude_buffer_size: usize = 0;
+                let mut last_frame = 0;
+                progress_bar.set_length(reader.samples::<i16>().len() as u64);
+                for (i, sample) in reader.samples::<i16>().enumerate() {
+                    let sample = sample.unwrap();
+                    if sample_to_frame(i) > last_frame {
+                        amplitude_db
+                            .push(current_amplitude_sum / current_amplitude_buffer_size as f32);
+                        current_amplitude_sum = 0.0;
+                        current_amplitude_buffer_size = 0;
+                        last_frame = sample_to_frame(i);
+                    } else {
+                        current_amplitude_sum += sample.abs() as f32;
+                        current_amplitude_buffer_size += 1;
+                    }
+                    // main_progress_bar.tick();
+                    progress_bar.inc(1);
+                }
+                amplitude_db.push(current_amplitude_sum / current_amplitude_buffer_size as f32);
+                progress_bar.finish_with_message(format!(" Loaded \"{}\"", stem_name));
+                main_progress_bar.inc(1);
+
+                tx.send((
+                    progress_bar,
+                    stem_name.to_string(),
+                    Stem {
+                        amplitude_max: *amplitude_db
+                            .iter()
+                            .max_by(|a, b| a.partial_cmp(b).unwrap())
+                            .unwrap(),
+                        amplitude_db,
+                        duration_ms: (reader.duration() as f64 / spec.sample_rate as f64 * 1000.0)
+                            as usize,
+                    },
+                ))
+                .unwrap();
+                drop(tx);
+            }));
         }
+        drop(tx);
+
+        for (progress_bar, stem_name, stem) in rx {
+            progress_bar.finish_and_clear();
+            stems.insert(stem_name, stem);
+        }
+
+        for thread in threads {
+            thread.join().unwrap();
+        }
+
+        main_progress_bar.finish_and_clear();
+
+        println!("Loaded {} stems", stems.len());
 
         Self {
             audio_paths: audio.clone(),
@@ -628,12 +723,17 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         create_dir(self.frames_output_directory.clone()).unwrap();
 
         let progress_bar = indicatif::ProgressBar::new(self.total_frames() as u64).with_style(
-            indicatif::ProgressStyle::with_template("{spinner:.cyan} {percent:03.bold.cyan}% [{bar:100.bold.blue/dim.blue}] {eta:.cyan} ({pos:.bold} frames out of {len})").unwrap().progress_chars("== "),
+            indicatif::ProgressStyle::with_template(
+                &(PROGRESS_BARS_STYLE.to_owned() + " ({pos:.bold} frames out of {len})"),
+            )
+            .unwrap()
+            .progress_chars("== "),
         );
         let total_frames = self.total_frames();
         let aspect_ratio = canvas.grid_size.0 as f32 / canvas.grid_size.1 as f32;
         let resolution = self.resolution;
         let frames_output_directory = self.frames_output_directory.clone();
+        progress_bar.set_message("Rendering frames to SVG");
 
         for _ in 0..self.duration_ms() {
             context.ms += 1 as usize;
@@ -693,12 +793,16 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
 
             if context.frame != previous_rendered_frame {
                 let rendered = canvas.render();
-                println!("main thrd: {} rendered", context.frame);
                 frames_to_write.push((rendered, context.frame));
                 previous_rendered_beat = context.beat;
                 previous_rendered_frame = context.frame;
+                progress_bar.inc(1);
             }
         }
+
+        progress_bar.println("Rendered frames to SVG");
+        progress_bar.set_message("Rendering SVG frames to PNG");
+        progress_bar.set_position(0);
 
         let chunk_size = (frames_to_write.len() as f32 / workers_count as f32).ceil() as usize;
         let frames_to_write = Arc::new(frames_to_write);
@@ -731,11 +835,14 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             handle.join().unwrap();
         }
 
-        progress_bar.finish();
+        progress_bar.finish_and_clear();
+        println!("Rendered SVG frames to PNG");
 
-        if let Err(e) = self.build_video(output_file) {
+        let spinner = SpinState::start("Building video…");
+        if let Err(e) = self.build_video(&output_file) {
             panic!("Failed to build video: {}", e);
         }
+        spinner.end(&format!("Built video to {}", output_file));
     }
 }
 
