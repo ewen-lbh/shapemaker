@@ -1,14 +1,16 @@
 use chrono::NaiveDateTime;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rand::Rng;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_cbor;
 use serde_json;
 use std::cmp::min;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::Formatter;
 use std::fs::{create_dir, remove_dir_all, File};
-use std::io::{BufReader, Write};
+use std::io::{BufReader, BufWriter, Write};
 use std::ops::{Add, Mul, Range};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
@@ -62,13 +64,28 @@ impl<C> std::fmt::Debug for Hook<C> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Stem {
     pub amplitude_db: Vec<f32>,
     /// max amplitude of this stem
     pub amplitude_max: f32,
     /// in milliseconds
     pub duration_ms: usize,
+}
+
+impl Stem {
+    pub fn load_from_cbor(path: &str) -> Stem {
+        let file = File::open(path).unwrap();
+        let reader = BufReader::new(file);
+        let stem: Stem = serde_cbor::from_reader(reader).unwrap();
+        stem
+    }
+
+    pub fn save_to_cbor(&self, path: &str) {
+        let mut file = File::create(path).unwrap();
+        let bytes = serde_cbor::to_vec(&self).unwrap();
+        file.write_all(&bytes).unwrap();
+    }
 }
 
 #[derive(Debug)]
@@ -381,6 +398,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
 
         // Read all WAV stem files: get their duration and amplitude per millisecond
         let mut stems: HashMap<String, Stem> = HashMap::new();
+
         let mut threads = vec![];
         let (tx, rx) = mpsc::channel();
 
@@ -422,6 +440,21 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 let path = entry.unwrap().path();
                 let stem_name = path.file_stem().unwrap().to_str().unwrap();
                 progress_bar.set_message(format!("Loading \"{}\"", stem_name));
+
+                // Check if a cached CBOR of the stem file exists
+                let cached_stem_path = format!(
+                    "{}/{}.cbor",
+                    path.parent().unwrap().to_string_lossy(),
+                    stem_name
+                );
+                if Path::new(&cached_stem_path).exists() {
+                    let stem = Stem::load_from_cbor(&cached_stem_path);
+                    progress_bar.set_message("Loaded {} from cache".to_owned());
+                    tx.send((progress_bar, stem_name.to_owned(), stem)).unwrap();
+                    main_progress_bar.inc(1);
+                    return;
+                }
+
                 let mut reader = hound::WavReader::open(path.clone())
                     .map_err(|e| format!("Failed to read stem file: {}", e))
                     .unwrap();
@@ -433,16 +466,16 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 let mut amplitude_db: Vec<f32> = vec![];
                 let mut current_amplitude_sum: f32 = 0.0;
                 let mut current_amplitude_buffer_size: usize = 0;
-                let mut last_frame = 0;
+                let mut latest_loaded_frame = 0;
                 progress_bar.set_length(reader.samples::<i16>().len() as u64);
                 for (i, sample) in reader.samples::<i16>().enumerate() {
                     let sample = sample.unwrap();
-                    if sample_to_frame(i) > last_frame {
+                    if sample_to_frame(i) > latest_loaded_frame {
                         amplitude_db
                             .push(current_amplitude_sum / current_amplitude_buffer_size as f32);
                         current_amplitude_sum = 0.0;
                         current_amplitude_buffer_size = 0;
-                        last_frame = sample_to_frame(i);
+                        latest_loaded_frame = sample_to_frame(i);
                     } else {
                         current_amplitude_sum += sample.abs() as f32;
                         current_amplitude_buffer_size += 1;
@@ -452,22 +485,24 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 }
                 amplitude_db.push(current_amplitude_sum / current_amplitude_buffer_size as f32);
                 progress_bar.finish_with_message(format!(" Loaded \"{}\"", stem_name));
+
+                let stem = Stem {
+                    amplitude_max: *amplitude_db
+                        .iter()
+                        .max_by(|a, b| a.partial_cmp(b).unwrap())
+                        .unwrap(),
+                    amplitude_db,
+                    duration_ms: (reader.duration() as f64 / spec.sample_rate as f64 * 1000.0)
+                        as usize,
+                };
+
+                // Write loaded stem to a CBOR cache file
+                Stem::save_to_cbor(&stem, &cached_stem_path);
+
                 main_progress_bar.inc(1);
 
-                tx.send((
-                    progress_bar,
-                    stem_name.to_string(),
-                    Stem {
-                        amplitude_max: *amplitude_db
-                            .iter()
-                            .max_by(|a, b| a.partial_cmp(b).unwrap())
-                            .unwrap(),
-                        amplitude_db,
-                        duration_ms: (reader.duration() as f64 / spec.sample_rate as f64 * 1000.0)
-                            as usize,
-                    },
-                ))
-                .unwrap();
+                tx.send((progress_bar, stem_name.to_string(), stem))
+                    .unwrap();
                 drop(tx);
             }));
         }
@@ -570,6 +605,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         Self { hooks, ..self }
     }
 
+    /// threshold is a value between 0 and 1: current amplitude / max amplitude of stem
     pub fn on_stem(
         self,
         stem_name: &'static str,
@@ -719,7 +755,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let mut frame_writer_threads = vec![];
         let mut frames_to_write: Vec<(String, usize)> = vec![];
 
-        remove_dir_all(self.frames_output_directory.clone()).unwrap();
+        remove_dir_all(self.frames_output_directory.clone());
         create_dir(self.frames_output_directory.clone()).unwrap();
 
         let progress_bar = indicatif::ProgressBar::new(self.total_frames() as u64).with_style(
@@ -1301,10 +1337,10 @@ pub enum Object {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Anchor(i32, i32);
+pub struct Anchor(pub i32, pub i32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct CenterAnchor(i32, i32);
+pub struct CenterAnchor(pub i32, pub i32);
 
 pub trait Coordinates {
     fn coords(&self, canvas: &Canvas) -> (f32, f32);
