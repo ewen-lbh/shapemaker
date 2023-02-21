@@ -1,0 +1,12 @@
+[package]
+name = "playground"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chrono = "0.4.23"
+chrono-human-duration = "0.1.1"
+itertools = "0.10.5"
+midly = "0.5.3"
