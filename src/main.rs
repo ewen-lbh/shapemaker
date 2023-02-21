@@ -19,7 +19,7 @@ const USAGE: &'static str = "
 Usage: shapemaker (image|video) [options] [--color <mapping>...] <file>
        shapemaker --help
        shapemaker --version
-    
+
 Options:
     --resolution <pixelcount>      Size of the image (or frames)'s largest dimension in pixels [default: 1000]
     --colors <file>                JSON file mapping color names to hex values
@@ -38,7 +38,7 @@ Options:
     --polygon-vertices <range>     Number of vertices for polygons [default: 2..6]
 
         Note: <range>s are inclusive on both ends
-    
+
     Video-specific:
     --workers <number>             Number of parallel threads to use for rendering [default: 8]
     --fps <fps>                    Frames per second [default: 30]
@@ -48,7 +48,7 @@ Options:
                                    - landmarks.json — JSON file mapping time in milliseconds to marker text (see ./landmarks.py)
                                    - full.mp3 — the complete audio file to use as the video's audio
                                    - bpm.txt — the BPM of the audio file (see ./landmarks.py)
-    
+
 
 ";
 
@@ -89,6 +89,7 @@ fn main() {
             landmarks: audiosync_dir.clone() + "/landmarks.json",
             complete: audiosync_dir.clone() + "/full.mp3",
             bpm: audiosync_dir.clone() + "/bpm.txt",
+			midi: audiosync_dir.clone() + "/full.midi",
         })
         .set_fps(args.flag_fps.unwrap_or(30))
         .set_initial_canvas(canvas)
