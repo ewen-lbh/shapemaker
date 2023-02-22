@@ -67,7 +67,7 @@ fn main() {
     set_canvas_settings_from_args(&args, &mut canvas);
 
     if args.cmd_image && !args.cmd_video {
-        canvas.set_shape(canvas.random_shape("main"));
+        *canvas.root() = canvas.random_layer("main");
         let aspect_ratio = canvas.grid_size.0 as f32 / canvas.grid_size.1 as f32;
         match Canvas::save_as_png(
             &args.arg_file,
@@ -84,13 +84,16 @@ fn main() {
     let audiosync_dir = args.flag_sync_to.unwrap_or("audiosync".to_string());
 
     Video::<(Anchor, CenterAnchor, Color, Color)>::new()
-        .sync_to(&AudioSyncPaths {
-            stems: audiosync_dir.clone() + "/stems/",
-            landmarks: audiosync_dir.clone() + "/landmarks.json",
-            complete: audiosync_dir.clone() + "/full.mp3",
-            bpm: audiosync_dir.clone() + "/bpm.txt",
-			midi: audiosync_dir.clone() + "/full.midi",
-        })
+        .sync_to(
+            &AudioSyncPaths {
+                stems: audiosync_dir.clone() + "/stems/",
+                landmarks: audiosync_dir.clone() + "/landmarks.json",
+                complete: audiosync_dir.clone() + "/full.mp3",
+                bpm: audiosync_dir.clone() + "/bpm.txt",
+                midi: audiosync_dir.clone() + "/full.midi",
+            },
+            HashMap::new(),
+        )
         .set_fps(args.flag_fps.unwrap_or(30))
         .set_initial_canvas(canvas)
         .init(&|canvas: _, context: _| {
@@ -109,13 +112,11 @@ fn main() {
             "kick",
             0.7,
             &|canvas, context| {
-                canvas.add_object(
+                canvas.root().add_object(
                     "kick",
-                    (
-                        Object::BigCircle(context.extra.1),
-                        Some(Fill::Solid(Color::Cyan)),
-                    ),
-                )
+                    Object::BigCircle(context.extra.1),
+                    Some(Fill::Solid(Color::Cyan)),
+                );
             },
             &|canvas, _| canvas.remove_object("kick"),
         )
@@ -123,23 +124,17 @@ fn main() {
             "clap",
             0.7,
             &|canvas, _| {
-                canvas.add_object(
-                    "clap",
-                    (
-                        canvas.random_polygon(),
-                        Some(Fill::Solid(canvas.random_color())),
-                    ),
-                );
+                let polygon = canvas.random_polygon();
+                let fill = Some(Fill::Solid(canvas.random_color()));
+                canvas.root().add_object("clap", polygon, fill);
             },
             &|_, _| {},
         )
         .on("start credits", &|canvas, _| {
-            canvas.add_object(
+            canvas.root().add_object(
                 "credits text",
-                (
-                    Object::RawSVG(Box::new(svg::node::Text::new("by ewen-lbh"))),
-                    None,
-                ),
+                Object::RawSVG(Box::new(svg::node::Text::new("by ewen-lbh"))),
+                None,
             );
         })
         .on("end credits", &|canvas, _| {
@@ -150,7 +145,7 @@ fn main() {
             let name = args[0];
             let object = Object::parse(args[2].to_string());
             let fill = Option::<Fill>::parse(args[1].to_string());
-            canvas.add_object(name, (object, fill));
+            canvas.root().add_object(name, object, fill);
         })
         .command("remove", &|argumentsline, canvas, _| {
             let args = argumentsline.splitn(3, ' ').collect::<Vec<_>>();
@@ -197,16 +192,16 @@ fn set_canvas_settings_from_args(args: &Args, canvas: &mut Canvas) {
         canvas.canvas_outter_padding = canvas_padding;
     }
     if let Some(line_width) = args.flag_line_width {
-        canvas.line_width = line_width;
+        canvas.object_sizes.line_width = line_width;
     }
     if let Some(small_circle_radius) = args.flag_small_circle_radius {
-        canvas.small_circle_radius = small_circle_radius;
+        canvas.object_sizes.small_circle_radius = small_circle_radius;
     }
     if let Some(dot_radius) = args.flag_dot_radius {
-        canvas.dot_radius = dot_radius;
+        canvas.object_sizes.dot_radius = dot_radius;
     }
     if let Some(empty_shape_stroke) = args.flag_empty_shape_stroke {
-        canvas.empty_shape_stroke_width = empty_shape_stroke;
+        canvas.object_sizes.empty_shape_stroke_width = empty_shape_stroke;
     }
     canvas.render_grid = args.flag_render_grid;
     if let Some(objects_count) = &args.flag_objects_count {

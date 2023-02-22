@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::Itertools;
-use midly::{Fps, MetaMessage, MidiMessage, Smf, SmpteTime, Track, TrackEvent, TrackEventKind};
+use midly::{MetaMessage, MidiMessage, TrackEventKind};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_cbor;
@@ -10,11 +10,10 @@ use std::cmp::min;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::Formatter;
 use std::fs::{create_dir, remove_dir_all, File};
-use std::io::{BufReader, BufWriter, Write};
-use std::ops::{Add, Mul, Range};
+use std::io::{BufReader, Write};
+use std::ops::Range;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, Mutex, MutexGuard};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time;
 
@@ -343,7 +342,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
     pub fn new() -> Self {
         Self {
             fps: 30,
-            initial_canvas: Canvas::new(),
+            initial_canvas: Canvas::new(vec!["root"]),
             hooks: vec![],
             commands: vec![],
             frames: vec![],
@@ -863,6 +862,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         self,
         stems: &'static str,
         cutoff_amplitude: f32,
+        layer_name: &'static str,
         object_name: &'static str,
         create_object: &'static dyn Fn(
             &Canvas,
@@ -877,7 +877,8 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                     .any(|stem_name| ctx.stem(stem_name).notes.iter().any(|note| note.is_on()))
             }),
             render_function: Box::new(move |canvas, ctx| {
-                canvas.add_object(object_name, create_object(&canvas, ctx));
+                let (object, fill) = create_object(canvas, ctx);
+                canvas.add_object(layer_name, object_name, object, fill);
             }),
         });
         hooks.push(Hook {
@@ -1158,6 +1159,14 @@ pub fn milliseconds_to_timestamp(ms: usize) -> String {
     )
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ObjectSizes {
+    pub empty_shape_stroke_width: f32,
+    pub small_circle_radius: f32,
+    pub dot_radius: f32,
+    pub line_width: f32,
+}
+
 #[derive(Debug, Clone)]
 pub struct Canvas {
     pub grid_size: (usize, usize),
@@ -1165,38 +1174,64 @@ pub struct Canvas {
     pub objects_count_range: Range<usize>,
     pub polygon_vertices_range: Range<usize>,
     pub canvas_outter_padding: usize,
-    pub line_width: f32,
-    pub empty_shape_stroke_width: f32,
-    pub small_circle_radius: f32,
-    pub dot_radius: f32,
+    pub object_sizes: ObjectSizes,
     pub render_grid: bool,
     pub colormap: ColorMapping,
-    pub shape: Shape,
+    /// The layers are in order of top to bottom: the first layer will be rendered on top of the second, etc.
+    pub layers: Vec<Layer>,
     pub background: Option<Color>,
-    pub _render_cache: Option<String>,
 }
 
 impl Canvas {
-    pub fn new() -> Self {
-        Self::default_settings()
+    /// Create a new canvas.
+    /// The layers are in order of top to bottom: the first layer will be rendered on top of the second, etc.
+    /// A layer named "root" will be added below all layers if you don't add it yourself.
+    pub fn new(layer_names: Vec<&str>) -> Self {
+        let mut layer_names = layer_names;
+        if let None = layer_names.iter().find(|&&name| name == "root") {
+            layer_names.push("root");
+        }
+        Self {
+            layers: layer_names
+                .iter()
+                .map(|name| Layer {
+                    objects: HashMap::new(),
+                    name: name.to_string(),
+                    _render_cache: None,
+                })
+                .collect(),
+            ..Self::default_settings()
+        }
     }
 
-    pub fn set_shape(&mut self, shape: Shape) {
-        self.shape = shape;
-        // println!("invalidating canvas render cache");
-        self._render_cache = None;
+    pub fn layer(&mut self, name: &str) -> Option<&mut Layer> {
+        self.layers.iter_mut().find(|layer| layer.name == name)
     }
 
-    pub fn add_object(&mut self, name: &str, object: (Object, Option<Fill>)) {
-        self.shape.objects.insert(name.to_string(), object);
-        // println!("invalidating canvas render cache");
-        self._render_cache = None;
+    pub fn root(&mut self) -> &mut Layer {
+        self.layer("root").unwrap()
+    }
+
+    pub fn add_object(
+        &mut self,
+        layer: &str,
+        name: &str,
+        object: Object,
+        fill: Option<Fill>,
+    ) -> Result<(), String> {
+        match self.layer(&layer) {
+            None => Err(format!("Layer {} does not exist", layer)),
+            Some(layer) => {
+                layer.objects.insert(name.to_string(), (object, fill));
+                Ok(())
+            }
+        }
     }
 
     pub fn remove_object(&mut self, name: &str) {
-        self.shape.objects.remove(name);
-        // println!("invalidating canvas render cache");
-        self._render_cache = None;
+        for layer in self.layers.iter_mut() {
+            layer.remove_object(name);
+        }
     }
 
     pub fn set_background(&mut self, color: Color) {
@@ -1214,20 +1249,19 @@ impl Canvas {
             objects_count_range: 3..7,
             polygon_vertices_range: 2..7,
             canvas_outter_padding: 10,
-            line_width: 2.0,
-            empty_shape_stroke_width: 0.5,
-            small_circle_radius: 5.0,
-            dot_radius: 2.0,
+            object_sizes: ObjectSizes {
+                line_width: 2.0,
+                empty_shape_stroke_width: 0.5,
+                small_circle_radius: 5.0,
+                dot_radius: 2.0,
+            },
             render_grid: false,
             colormap: ColorMapping::default(),
-            shape: Shape {
-                objects: HashMap::new(),
-            },
-            _render_cache: None,
+            layers: vec![],
             background: None,
         }
     }
-    pub fn random_shape(&self, name: &'static str) -> Shape {
+    pub fn random_layer(&self, name: &'static str) -> Layer {
         let mut objects: HashMap<String, (Object, Option<Fill>)> = HashMap::new();
         let number_of_objects = rand::thread_rng().gen_range(self.objects_count_range.clone());
         for i in 0..number_of_objects {
@@ -1244,7 +1278,11 @@ impl Canvas {
                 ),
             );
         }
-        Shape { objects }
+        Layer {
+            name: name.to_string(),
+            objects,
+            _render_cache: None,
+        }
     }
 
     pub fn random_object(&self) -> Object {
@@ -1370,9 +1408,7 @@ impl Canvas {
     }
 
     pub fn clear(&mut self) {
-        self.shape = Shape {
-            objects: HashMap::new(),
-        };
+        self.layers.clear();
         self.remove_background()
     }
 
@@ -1586,9 +1622,291 @@ impl Parsable for Option<Fill> {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Shape {
+#[derive(Debug, Clone, Default)]
+pub struct Layer {
     pub objects: HashMap<String, (Object, Option<Fill>)>,
+    pub name: String,
+    pub _render_cache: Option<svg::node::element::Group>,
+}
+
+impl Layer {
+    pub fn new(name: &str) -> Self {
+        Layer {
+            objects: HashMap::new(),
+            name: name.to_string(),
+            _render_cache: None,
+        }
+    }
+
+    pub fn add_object(&mut self, name: &str, object: Object, fill: Option<Fill>) {
+        self.objects.insert(name.to_string(), (object, fill));
+        self._render_cache = None;
+    }
+
+    pub fn remove_object(&mut self, name: &str) {
+        self.objects.remove(name);
+        self._render_cache = None;
+    }
+
+    /// Render the layer to a SVG group element.
+    pub fn render(
+        &mut self,
+        colormap: ColorMapping,
+        cell_size: usize,
+        object_sizes: ObjectSizes,
+    ) -> svg::node::element::Group {
+        if let Some(cached_svg) = &self._render_cache {
+            return cached_svg.clone();
+        }
+        let default_color = Color::Black.to_string(&colormap);
+        // eprintln!("render: background_color({:?})", background_color);
+        let mut layer_group = svg::node::element::Group::new()
+            .set("class", "layer")
+            .set("data-layer", self.name.clone());
+        for (_id, (object, maybe_fill)) in &self.objects {
+            let mut group = svg::node::element::Group::new();
+            match object {
+                Object::RawSVG(svg) => {
+                    // eprintln!("render: raw_svg [{}]", id);
+                    group = group.add(svg.clone());
+                }
+                Object::Polygon(start, lines) => {
+                    // eprintln!("render: polygon({:?}, {:?}) [{}]", start, lines, id);
+                    let mut path = svg::node::element::path::Data::new();
+                    path = path.move_to(start.coords(cell_size));
+                    for line in lines {
+                        path = match line {
+                            Line::Line(end) | Line::InwardCurve(end) | Line::OutwardCurve(end) => {
+                                path.line_to(end.coords(cell_size))
+                            }
+                        };
+                    }
+                    path = path.close();
+                    group = group
+                        .add(svg::node::element::Path::new().set("d", path))
+                        .set(
+                            "style",
+                            match maybe_fill {
+                                // TODO
+                                Some(Fill::Solid(color)) => {
+                                    format!("fill: {};", color.to_string(&colormap))
+                                }
+                                Some(Fill::Translucent(color, opacity)) => {
+                                    format!(
+                                        "fill: {}; opacity: {};",
+                                        color.to_string(&colormap),
+                                        opacity
+                                    )
+                                }
+                                _ => format!(
+                                    "fill: none; stroke: {}; stroke-width: {}px;",
+                                    default_color, object_sizes.empty_shape_stroke_width
+                                ),
+                            },
+                        );
+                }
+                Object::Line(start, end) => {
+                    // eprintln!("render: line({:?}, {:?}) [{}]", start, end, id);
+                    group = group.add(
+                        svg::node::element::Line::new()
+                            .set("x1", start.coords(cell_size).0)
+                            .set("y1", start.coords(cell_size).1)
+                            .set("x2", end.coords(cell_size).0)
+                            .set("y2", end.coords(cell_size).1)
+                            .set(
+                                "style",
+                                match maybe_fill {
+                                    // TODO
+                                    Some(Fill::Solid(color)) => {
+                                        format!(
+                                            "fill: none; stroke: {}; stroke-width: 2px;",
+                                            color.to_string(&colormap)
+                                        )
+                                    }
+                                    _ => format!(
+                                        "fill: none; stroke: {}; stroke-width: 2px;",
+                                        default_color
+                                    ),
+                                },
+                            ),
+                    );
+                }
+                Object::CurveInward(start, end) | Object::CurveOutward(start, end) => {
+                    let inward = if matches!(object, Object::CurveInward(_, _)) {
+                        // eprintln!("render: curve_inward({:?}, {:?}) [{}]", start, end, id);
+                        true
+                    } else {
+                        // eprintln!("render: curve_outward({:?}, {:?}) [{}]", start, end, id);
+                        false
+                    };
+
+                    let (start_x, start_y) = start.coords(cell_size);
+                    let (end_x, end_y) = end.coords(cell_size);
+
+                    let midpoint = ((start_x + end_x) / 2.0, (start_y + end_y) / 2.0);
+                    let start_from_midpoint = (start_x - midpoint.0, start_y - midpoint.1);
+                    let end_from_midpoint = (end_x - midpoint.0, end_y - midpoint.1);
+                    // eprintln!("        midpoint: {:?}", midpoint);
+                    // eprintln!(
+                    // "        from midpoint: {:?} -> {:?}",
+                    // start_from_midpoint, end_from_midpoint
+                    // );
+                    let control = {
+                        let relative = (end_x - start_x, end_y - start_y);
+                        // eprintln!("        relative: {:?}", relative);
+                        // diagonal line is going like this: \
+                        if start_from_midpoint.0 * start_from_midpoint.1 > 0.0
+                            && end_from_midpoint.0 * end_from_midpoint.1 > 0.0
+                        {
+                            // eprintln!("        diagonal \\");
+                            if inward {
+                                (
+                                    midpoint.0 + relative.0.abs() / 2.0,
+                                    midpoint.1 - relative.1.abs() / 2.0,
+                                )
+                            } else {
+                                (
+                                    midpoint.0 - relative.0.abs() / 2.0,
+                                    midpoint.1 + relative.1.abs() / 2.0,
+                                )
+                            }
+                        // diagonal line is going like this: /
+                        } else if start_from_midpoint.0 * start_from_midpoint.1 < 0.0
+                            && end_from_midpoint.0 * end_from_midpoint.1 < 0.0
+                        {
+                            // eprintln!("        diagonal /");
+                            if inward {
+                                (
+                                    midpoint.0 - relative.0.abs() / 2.0,
+                                    midpoint.1 - relative.1.abs() / 2.0,
+                                )
+                            } else {
+                                (
+                                    midpoint.0 + relative.0.abs() / 2.0,
+                                    midpoint.1 + relative.1.abs() / 2.0,
+                                )
+                            }
+                        // line is horizontal
+                        } else if start_y == end_y {
+                            // eprintln!("        horizontal");
+                            (
+                                midpoint.0,
+                                midpoint.1
+                                    + (if inward { -1.0 } else { 1.0 }) * relative.0.abs() / 2.0,
+                            )
+                        // line is vertical
+                        } else if start_x == end_x {
+                            // eprintln!("        vertical");
+                            (
+                                midpoint.0
+                                    + (if inward { -1.0 } else { 1.0 }) * relative.1.abs() / 2.0,
+                                midpoint.1,
+                            )
+                        } else {
+                            unreachable!()
+                        }
+                    };
+                    // eprintln!("        control: {:?}", control);
+                    group = group.add(
+                        svg::node::element::Path::new()
+                            .set(
+                                "d",
+                                svg::node::element::path::Data::new()
+                                    .move_to(start.coords(cell_size))
+                                    .quadratic_curve_to((control, end.coords(cell_size))),
+                            )
+                            .set(
+                                "style",
+                                match maybe_fill {
+                                    // TODO
+                                    Some(Fill::Solid(color)) => {
+                                        format!(
+                                            "fill: none; stroke: {}; stroke-width: {}px;",
+                                            color.to_string(&colormap),
+                                            object_sizes.line_width
+                                        )
+                                    }
+                                    _ => format!(
+                                        "fill: none; stroke: {}; stroke-width: {}px;",
+                                        default_color, object_sizes.line_width
+                                    ),
+                                },
+                            ),
+                    );
+                }
+                Object::SmallCircle(center) => {
+                    // eprintln!("render: small_circle({:?}) [{}]", center, id);
+                    group = group.add(
+                        svg::node::element::Circle::new()
+                            .set("cx", center.coords(cell_size).0)
+                            .set("cy", center.coords(cell_size).1)
+                            .set("r", object_sizes.small_circle_radius)
+                            .set(
+                                "style",
+                                match maybe_fill {
+                                    // TODO
+                                    Some(Fill::Solid(color)) => {
+                                        format!("fill: {};", color.to_string(&colormap))
+                                    }
+                                    _ => format!(
+                                        "fill: none; stroke: {}; stroke-width: {}px;",
+                                        default_color, object_sizes.empty_shape_stroke_width
+                                    ),
+                                },
+                            ),
+                    );
+                }
+                Object::Dot(center) => {
+                    // eprintln!("render: dot({:?}) [{}]", center, id);
+                    group = group.add(
+                        svg::node::element::Circle::new()
+                            .set("cx", center.coords(cell_size).0)
+                            .set("cy", center.coords(cell_size).1)
+                            .set("r", object_sizes.dot_radius)
+                            .set(
+                                "style",
+                                match maybe_fill {
+                                    // TODO
+                                    Some(Fill::Solid(color)) => {
+                                        format!("fill: {};", color.to_string(&colormap))
+                                    }
+                                    _ => format!(
+                                        "fill: none; stroke: {}; stroke-width: {}px;",
+                                        default_color, object_sizes.empty_shape_stroke_width
+                                    ),
+                                },
+                            ),
+                    );
+                }
+                Object::BigCircle(center) => {
+                    // eprintln!("render: big_circle({:?}) [{}]", center, id);
+                    group = group.add(
+                        svg::node::element::Circle::new()
+                            .set("cx", center.coords(cell_size).0)
+                            .set("cy", center.coords(cell_size).1)
+                            .set("r", cell_size / 2)
+                            .set(
+                                "style",
+                                match maybe_fill {
+                                    // TODO
+                                    Some(Fill::Solid(color)) => {
+                                        format!("fill: {};", color.to_string(&colormap))
+                                    }
+                                    _ => format!(
+                                        "fill: none; stroke: {}; stroke-width: 0.5px;",
+                                        default_color
+                                    ),
+                                },
+                            ),
+                    );
+                }
+            }
+            // eprintln!("        fill: {:?}", &maybe_fill);
+            layer_group = layer_group.add(group);
+        }
+        self._render_cache = Some(layer_group.clone());
+        layer_group
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1610,17 +1928,17 @@ pub struct Anchor(pub i32, pub i32);
 pub struct CenterAnchor(pub i32, pub i32);
 
 pub trait Coordinates {
-    fn coords(&self, canvas: &Canvas) -> (f32, f32);
+    fn coords(&self, cell_size: usize) -> (f32, f32);
     fn center() -> Self;
 }
 
 impl Coordinates for Anchor {
-    fn coords(&self, canvas: &Canvas) -> (f32, f32) {
+    fn coords(&self, cell_size: usize) -> (f32, f32) {
         match self {
-            Anchor(-1, -1) => (canvas.cell_size as f32 / 2.0, canvas.cell_size as f32 / 2.0),
+            Anchor(-1, -1) => (cell_size as f32 / 2.0, cell_size as f32 / 2.0),
             Anchor(i, j) => {
-                let x = (i * canvas.cell_size as i32) as f32;
-                let y = (j * canvas.cell_size as i32) as f32;
+                let x = (i * cell_size as i32) as f32;
+                let y = (j * cell_size as i32) as f32;
                 (x, y)
             }
         }
@@ -1632,12 +1950,12 @@ impl Coordinates for Anchor {
 }
 
 impl Coordinates for CenterAnchor {
-    fn coords(&self, canvas: &Canvas) -> (f32, f32) {
+    fn coords(&self, cell_size: usize) -> (f32, f32) {
         match self {
-            CenterAnchor(-1, -1) => ((canvas.cell_size / 2) as f32, (canvas.cell_size / 2) as f32),
+            CenterAnchor(-1, -1) => ((cell_size / 2) as f32, (cell_size / 2) as f32),
             CenterAnchor(i, j) => {
-                let x = *i as f32 * canvas.cell_size as f32 + canvas.cell_size as f32 / 2.0;
-                let y = *j as f32 * canvas.cell_size as f32 + canvas.cell_size as f32 / 2.0;
+                let x = *i as f32 * cell_size as f32 + cell_size as f32 / 2.0;
+                let y = *j as f32 * cell_size as f32 + cell_size as f32 / 2.0;
                 (x, y)
             }
         }
@@ -1759,275 +2077,37 @@ impl Color {
 }
 
 impl Canvas {
+    pub fn width(&self) -> usize {
+        self.cell_size * (self.grid_size.0 - 1) + 2 * self.canvas_outter_padding
+    }
+
+    pub fn height(&self) -> usize {
+        self.cell_size * (self.grid_size.1 - 1) + 2 * self.canvas_outter_padding
+    }
+
     pub fn render(&mut self) -> String {
-        if let Some(cached_svg_string) = &self._render_cache {
-            return cached_svg_string.clone();
-        }
-        let canvas_width = self.cell_size * (self.grid_size.0 - 1) + 2 * self.canvas_outter_padding;
-        let canvas_height =
-            self.cell_size * (self.grid_size.1 - 1) + 2 * self.canvas_outter_padding;
-        let default_color = Color::Black.to_string(&self.colormap);
         let background_color = self.background.unwrap_or(Color::default());
-        // eprintln!("render: background_color({:?})", background_color);
         let mut svg = svg::Document::new().add(
             svg::node::element::Rectangle::new()
                 .set("x", -(self.canvas_outter_padding as i32))
                 .set("y", -(self.canvas_outter_padding as i32))
-                .set("width", canvas_width)
-                .set("height", canvas_height)
+                .set("width", self.width())
+                .set("height", self.height())
                 .set("fill", background_color.to_string(&self.colormap)),
         );
-        for (_id, (object, maybe_fill)) in &self.shape.objects {
-            let mut group = svg::node::element::Group::new();
-            match object {
-                Object::RawSVG(svg) => {
-                    // eprintln!("render: raw_svg [{}]", id);
-                    group = group.add(svg.clone());
-                }
-                Object::Polygon(start, lines) => {
-                    // eprintln!("render: polygon({:?}, {:?}) [{}]", start, lines, id);
-                    let mut path = svg::node::element::path::Data::new();
-                    path = path.move_to(start.coords(&self));
-                    for line in lines {
-                        path = match line {
-                            Line::Line(end) | Line::InwardCurve(end) | Line::OutwardCurve(end) => {
-                                path.line_to(end.coords(&self))
-                            }
-                        };
-                    }
-                    path = path.close();
-                    group = group
-                        .add(svg::node::element::Path::new().set("d", path))
-                        .set(
-                            "style",
-                            match maybe_fill {
-                                // TODO
-                                Some(Fill::Solid(color)) => {
-                                    format!("fill: {};", color.to_string(&self.colormap))
-                                }
-                                Some(Fill::Translucent(color, opacity)) => {
-                                    format!(
-                                        "fill: {}; opacity: {};",
-                                        color.to_string(&self.colormap),
-                                        opacity
-                                    )
-                                }
-                                _ => format!(
-                                    "fill: none; stroke: {}; stroke-width: {}px;",
-                                    default_color, self.empty_shape_stroke_width
-                                ),
-                            },
-                        );
-                }
-                Object::Line(start, end) => {
-                    // eprintln!("render: line({:?}, {:?}) [{}]", start, end, id);
-                    group = group.add(
-                        svg::node::element::Line::new()
-                            .set("x1", start.coords(&self).0)
-                            .set("y1", start.coords(&self).1)
-                            .set("x2", end.coords(&self).0)
-                            .set("y2", end.coords(&self).1)
-                            .set(
-                                "style",
-                                match maybe_fill {
-                                    // TODO
-                                    Some(Fill::Solid(color)) => {
-                                        format!(
-                                            "fill: none; stroke: {}; stroke-width: 2px;",
-                                            color.to_string(&self.colormap)
-                                        )
-                                    }
-                                    _ => format!(
-                                        "fill: none; stroke: {}; stroke-width: 2px;",
-                                        default_color
-                                    ),
-                                },
-                            ),
-                    );
-                }
-                Object::CurveInward(start, end) | Object::CurveOutward(start, end) => {
-                    let inward = if matches!(object, Object::CurveInward(_, _)) {
-                        // eprintln!("render: curve_inward({:?}, {:?}) [{}]", start, end, id);
-                        true
-                    } else {
-                        // eprintln!("render: curve_outward({:?}, {:?}) [{}]", start, end, id);
-                        false
-                    };
-
-                    let (start_x, start_y) = start.coords(&self);
-                    let (end_x, end_y) = end.coords(&self);
-
-                    let midpoint = ((start_x + end_x) / 2.0, (start_y + end_y) / 2.0);
-                    let start_from_midpoint = (start_x - midpoint.0, start_y - midpoint.1);
-                    let end_from_midpoint = (end_x - midpoint.0, end_y - midpoint.1);
-                    // eprintln!("        midpoint: {:?}", midpoint);
-                    // eprintln!(
-                    // "        from midpoint: {:?} -> {:?}",
-                    // start_from_midpoint, end_from_midpoint
-                    // );
-                    let control = {
-                        let relative = (end_x - start_x, end_y - start_y);
-                        // eprintln!("        relative: {:?}", relative);
-                        // diagonal line is going like this: \
-                        if start_from_midpoint.0 * start_from_midpoint.1 > 0.0
-                            && end_from_midpoint.0 * end_from_midpoint.1 > 0.0
-                        {
-                            // eprintln!("        diagonal \\");
-                            if inward {
-                                (
-                                    midpoint.0 + relative.0.abs() / 2.0,
-                                    midpoint.1 - relative.1.abs() / 2.0,
-                                )
-                            } else {
-                                (
-                                    midpoint.0 - relative.0.abs() / 2.0,
-                                    midpoint.1 + relative.1.abs() / 2.0,
-                                )
-                            }
-                        // diagonal line is going like this: /
-                        } else if start_from_midpoint.0 * start_from_midpoint.1 < 0.0
-                            && end_from_midpoint.0 * end_from_midpoint.1 < 0.0
-                        {
-                            // eprintln!("        diagonal /");
-                            if inward {
-                                (
-                                    midpoint.0 - relative.0.abs() / 2.0,
-                                    midpoint.1 - relative.1.abs() / 2.0,
-                                )
-                            } else {
-                                (
-                                    midpoint.0 + relative.0.abs() / 2.0,
-                                    midpoint.1 + relative.1.abs() / 2.0,
-                                )
-                            }
-                        // line is horizontal
-                        } else if start_y == end_y {
-                            // eprintln!("        horizontal");
-                            (
-                                midpoint.0,
-                                midpoint.1
-                                    + (if inward { -1.0 } else { 1.0 }) * relative.0.abs() / 2.0,
-                            )
-                        // line is vertical
-                        } else if start_x == end_x {
-                            // eprintln!("        vertical");
-                            (
-                                midpoint.0
-                                    + (if inward { -1.0 } else { 1.0 }) * relative.1.abs() / 2.0,
-                                midpoint.1,
-                            )
-                        } else {
-                            unreachable!()
-                        }
-                    };
-                    // eprintln!("        control: {:?}", control);
-                    group = group.add(
-                        svg::node::element::Path::new()
-                            .set(
-                                "d",
-                                svg::node::element::path::Data::new()
-                                    .move_to(start.coords(&self))
-                                    .quadratic_curve_to((control, end.coords(&self))),
-                            )
-                            .set(
-                                "style",
-                                match maybe_fill {
-                                    // TODO
-                                    Some(Fill::Solid(color)) => {
-                                        format!(
-                                            "fill: none; stroke: {}; stroke-width: {}px;",
-                                            color.to_string(&self.colormap),
-                                            self.line_width
-                                        )
-                                    }
-                                    _ => format!(
-                                        "fill: none; stroke: {}; stroke-width: {}px;",
-                                        default_color, self.line_width
-                                    ),
-                                },
-                            ),
-                    );
-                }
-                Object::SmallCircle(center) => {
-                    // eprintln!("render: small_circle({:?}) [{}]", center, id);
-                    group = group.add(
-                        svg::node::element::Circle::new()
-                            .set("cx", center.coords(&self).0)
-                            .set("cy", center.coords(&self).1)
-                            .set("r", self.small_circle_radius)
-                            .set(
-                                "style",
-                                match maybe_fill {
-                                    // TODO
-                                    Some(Fill::Solid(color)) => {
-                                        format!("fill: {};", color.to_string(&self.colormap))
-                                    }
-                                    _ => format!(
-                                        "fill: none; stroke: {}; stroke-width: {}px;",
-                                        default_color, self.empty_shape_stroke_width
-                                    ),
-                                },
-                            ),
-                    );
-                }
-                Object::Dot(center) => {
-                    // eprintln!("render: dot({:?}) [{}]", center, id);
-                    group = group.add(
-                        svg::node::element::Circle::new()
-                            .set("cx", center.coords(&self).0)
-                            .set("cy", center.coords(&self).1)
-                            .set("r", self.dot_radius)
-                            .set(
-                                "style",
-                                match maybe_fill {
-                                    // TODO
-                                    Some(Fill::Solid(color)) => {
-                                        format!("fill: {};", color.to_string(&self.colormap))
-                                    }
-                                    _ => format!(
-                                        "fill: none; stroke: {}; stroke-width: {}px;",
-                                        default_color, self.empty_shape_stroke_width
-                                    ),
-                                },
-                            ),
-                    );
-                }
-                Object::BigCircle(center) => {
-                    // eprintln!("render: big_circle({:?}) [{}]", center, id);
-                    group = group.add(
-                        svg::node::element::Circle::new()
-                            .set("cx", center.coords(&self).0)
-                            .set("cy", center.coords(&self).1)
-                            .set("r", self.cell_size / 2)
-                            .set(
-                                "style",
-                                match maybe_fill {
-                                    // TODO
-                                    Some(Fill::Solid(color)) => {
-                                        format!("fill: {};", color.to_string(&self.colormap))
-                                    }
-                                    _ => format!(
-                                        "fill: none; stroke: {}; stroke-width: 0.5px;",
-                                        default_color
-                                    ),
-                                },
-                            ),
-                    );
-                }
-            }
-            // eprintln!("        fill: {:?}", &maybe_fill);
-            svg = svg.add(group);
+        for layer in self.layers.iter_mut().rev() {
+            svg = svg.add(layer.render(self.colormap.clone(), self.cell_size, self.object_sizes));
         }
         // render a dotted grid
         if self.render_grid {
             for i in 0..self.grid_size.0 as i32 {
                 for j in 0..self.grid_size.1 as i32 {
-                    let (x, y) = Anchor(i, j).coords(&self);
+                    let (x, y) = Anchor(i, j).coords(self.cell_size);
                     svg = svg.add(
                         svg::node::element::Circle::new()
                             .set("cx", x)
                             .set("cy", y)
-                            .set("r", self.line_width / 4.0)
+                            .set("r", self.object_sizes.line_width / 4.0)
                             .set("fill", "#000"),
                     );
 
@@ -2044,21 +2124,17 @@ impl Canvas {
                 }
             }
         }
-        self._render_cache = Some(
-            svg.set(
-                "viewBox",
-                format!(
-                    "{0} {0} {1} {2}",
-                    -(self.canvas_outter_padding as i32),
-                    canvas_width,
-                    canvas_height
-                ),
-            )
-            .set("width", canvas_width)
-            .set("height", canvas_height)
-            .to_string(),
-        );
-
-        self._render_cache.as_ref().unwrap().to_string()
+        svg.set(
+            "viewBox",
+            format!(
+                "{0} {0} {1} {2}",
+                -(self.canvas_outter_padding as i32),
+                self.width(),
+                self.height()
+            ),
+        )
+        .set("width", self.width())
+        .set("height", self.height())
+        .to_string()
     }
 }
