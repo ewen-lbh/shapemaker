@@ -2,8 +2,7 @@ use docopt::Docopt;
 use serde::Deserialize;
 use serde_json;
 use shapemaker::{
-    Anchor, AudioSyncPaths, Canvas, CenterAnchor, Color, ColorMapping, Fill,
-    MusicalDurationUnit::*, Object, Parsable, Video,
+    Anchor, AudioSyncPaths, Canvas, CenterAnchor, Color, ColorMapping, Fill, Object, Video,
 };
 use std::collections::HashMap;
 use std::fs::File;
@@ -73,7 +72,7 @@ fn main() {
             &args.arg_file,
             aspect_ratio,
             args.flag_resolution.unwrap_or(1000),
-            canvas.render(),
+            canvas.render(&vec!["*"], true),
         ) {
             Ok(_) => println!("Image saved to {}", args.arg_file),
             Err(e) => println!("Error saving image: {}", e),
@@ -139,13 +138,6 @@ fn main() {
         })
         .on("end credits", &|canvas, _| {
             canvas.remove_object("credits text");
-        })
-        .command("add", &|argumentsline, canvas, _| {
-            let args = argumentsline.splitn(3, ' ').collect::<Vec<_>>();
-            let name = args[0];
-            let object = Object::parse(args[2].to_string());
-            let fill = Option::<Fill>::parse(args[1].to_string());
-            canvas.root().add_object(name, object, fill);
         })
         .command("remove", &|argumentsline, canvas, _| {
             let args = argumentsline.splitn(3, ' ').collect::<Vec<_>>();
