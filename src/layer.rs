@@ -59,6 +59,22 @@ impl Layer {
                             .set("font-family", "sans-serif")
                             .set("text-anchor", "middle")
                             .set("dominant-baseline", "middle")
+                            .set(
+                                "style",
+                                match maybe_fill {
+                                    Some(Fill::Solid(color)) => {
+                                        format!("fill: {};", color.to_string(&colormap))
+                                    }
+                                    Some(Fill::Translucent(color, opacity)) => {
+                                        format!(
+                                            "fill: {}; opacity: {};",
+                                            color.to_string(&colormap),
+                                            opacity
+                                        )
+                                    }
+                                    _ => "".to_string(),
+                                },
+                            )
                             .add(svg::node::Text::new(content.clone())),
                     );
                 }
@@ -68,7 +84,23 @@ impl Layer {
                             .set("x1", start.coords(cell_size).0)
                             .set("y1", start.coords(cell_size).1)
                             .set("x2", end.coords(cell_size).0)
-                            .set("y2", end.coords(cell_size).1),
+                            .set("y2", end.coords(cell_size).1)
+                            .set(
+                                "style",
+                                match maybe_fill {
+                                    Some(Fill::Solid(color)) => {
+                                        format!("fill: {};", color.to_string(&colormap))
+                                    }
+                                    Some(Fill::Translucent(color, opacity)) => {
+                                        format!(
+                                            "fill: {}; opacity: {};",
+                                            color.to_string(&colormap),
+                                            opacity
+                                        )
+                                    }
+                                    _ => "".to_string(),
+                                },
+                            ),
                     );
                 }
                 Object::Polygon(start, lines) => {
