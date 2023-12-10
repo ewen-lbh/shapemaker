@@ -1,0 +1,1792 @@
+{
+    "info": {
+        "name": "",
+        "bpm": 123.0
+    },
+    "arrangements": {
+        "Arrangement": {
+            "kck": {
+                "3072": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "3456": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "3840": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "4224": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "4608": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "4992": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "5376": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "5760": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "6144": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "6528": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "6912": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "7296": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "7680": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "8064": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "8448": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "8832": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "9216": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "9600": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "9984": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "10368": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "10752": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "11136": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "11520": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "11904": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "12288": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "12672": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "13056": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "13440": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "13824": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "14208": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "14592": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "14976": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "15360": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "15744": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "16128": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "16512": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "16896": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "17280": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "17664": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "18048": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "18432": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "18816": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "19200": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "19584": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "19968": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "20352": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "20736": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "21120": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "21504": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "21888": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "22272": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "22656": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "23040": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "23424": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "23808": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "24192": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "24576": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "24960": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "25344": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "25728": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "26112": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "26496": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "26880": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "27264": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "38400": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "38784": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "39168": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "39552": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "39936": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "40320": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "40704": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "41088": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "41472": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "41856": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "42240": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "42624": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "43008": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "43392": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "43776": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "44160": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "44544": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "44928": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "45312": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "45696": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "46080": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "46464": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "46848": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "47232": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "47616": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "48000": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "48384": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "48768": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "49152": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "49536": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "49920": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "50304": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "50688": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "51072": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "51456": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "51840": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "52224": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "52608": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "52992": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "53376": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "53760": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "54144": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "54528": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "54912": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "55296": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "55680": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "56064": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "56448": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "56832": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "57216": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "57600": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "57984": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "58368": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "58752": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "59136": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "59520": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "59904": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "60288": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "60672": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "61056": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "61440": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "61824": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "62208": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "62592": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "62976": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "63360": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "63744": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "64128": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "64512": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "64896": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "65280": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "65664": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "66048": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "66432": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "66816": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "67200": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "67584": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "67968": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "68352": {
+                    "length": 384,
+                    "name": "kck"
+                },
+                "68736": {
+                    "length": 384,
+                    "name": "kck"
+                }
+            },
+            "clap": {
+                "13824": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "14208": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "14592": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "14976": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "15360": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "15744": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "16128": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "16512": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "16896": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "17280": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "17664": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "18048": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "18432": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "18816": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "19200": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "19584": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "19968": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "20352": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "20736": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "21120": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "21504": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "21888": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "22272": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "22656": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "23040": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "23424": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "23808": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "24192": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "24576": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "24960": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "25344": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "25728": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "26112": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "26496": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "26880": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "27264": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "33792": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "34176": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "34560": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "34944": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "35328": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "35712": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "36096": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "36480": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "36864": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "37248": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "37632": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "38016": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "38400": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "38784": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "39168": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "39552": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "39936": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "40320": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "40704": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "41088": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "41472": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "41856": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "42240": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "42624": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "43008": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "43392": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "43776": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "44160": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "44544": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "44928": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "45312": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "45696": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "46080": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "46464": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "46848": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "47232": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "47616": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "48000": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "48384": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "48768": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "53760": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "54144": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "54528": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "54912": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "55296": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "55680": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "56064": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "56448": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "56832": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "57216": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "57600": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "57984": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "58368": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "58752": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "59136": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "59520": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "59904": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "60288": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "60672": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "61056": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "61440": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "61824": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "62208": {
+                    "length": 384,
+                    "name": "clap"
+                },
+                "62592": {
+                    "length": 384,
+                    "name": "clap"
+                }
+            },
+            "3x Osc #2": {},
+            "3x Osc": {
+                "19968": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "20352": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "20736": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "21120": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "21504": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "21888": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "22272": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "22656": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "23040": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "23424": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "23808": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "24192": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "24576": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "24960": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "25344": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "25728": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "26112": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "26496": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "26880": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "27264": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "43008": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "43392": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "43776": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "44160": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "44544": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "44928": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "45312": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "45696": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "46080": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "46464": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "46848": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "47232": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "47616": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "48000": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "48384": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "48768": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "53760": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "54144": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "54528": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "54912": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "55296": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "55680": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "56064": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "56448": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "56832": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "57216": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "57600": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "57984": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "58368": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "58752": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "59136": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "59520": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "59904": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "60288": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "60672": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "61056": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "61440": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "61824": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "62208": {
+                    "length": 384,
+                    "name": "hh"
+                },
+                "62592": {
+                    "length": 384,
+                    "name": "hh"
+                }
+            },
+            "Delay_Ms": {
+                "0": {
+                    "length": 43008,
+                    "name": "Delay_Ms"
+                },
+                "43008": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "43392": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "43776": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "44160": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "44544": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "44928": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "45312": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "45696": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "46080": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "46464": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "46848": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "47232": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "47616": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "48000": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "48384": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "48768": {
+                    "length": 384,
+                    "name": "Delay_Ms"
+                },
+                "53760": {
+                    "length": 3216,
+                    "name": "hh delay"
+                },
+                "56976": {
+                    "length": 3216,
+                    "name": "hh delay"
+                },
+                "60192": {
+                    "length": 3216,
+                    "name": "hh delay"
+                }
+            },
+            "": {},
+            "bass rapid": {
+                "0": {
+                    "length": 1536,
+                    "name": "bass rapid"
+                },
+                "1536": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "4608": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "7680": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "10752": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "13824": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "16896": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "19968": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "23040": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "26112": {
+                    "length": 1536,
+                    "name": "bass rapid"
+                },
+                "30720": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "33792": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "36864": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "39936": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "43008": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "46080": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "49152": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "52224": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "55296": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "58368": {
+                    "length": 3072,
+                    "name": "bass rapid"
+                },
+                "61440": {
+                    "length": 1536,
+                    "name": "bass rapid"
+                }
+            },
+            "bass rapid #4 - Serum #2": {
+                "7680": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "10752": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "13824": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "16896": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "19968": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "23040": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "26112": {
+                    "length": 1536,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "38400": {
+                    "length": 1536,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "39936": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "43008": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "46080": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "49152": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "52224": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "55296": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "58368": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #2"
+                },
+                "61440": {
+                    "length": 1536,
+                    "name": "bass rapid #4 - Serum #2"
+                }
+            },
+            "bass rapid #4 - Serum #4": {
+                "13824": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #4"
+                },
+                "16896": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #4"
+                },
+                "19968": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #4"
+                },
+                "23040": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #4"
+                },
+                "26112": {
+                    "length": 1536,
+                    "name": "bass rapid #4 - Serum #4"
+                },
+                "38400": {
+                    "length": 1536,
+                    "name": "bass rapid #4 - Serum #4"
+                },
+                "39936": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #4"
+                },
+                "43008": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #4"
+                },
+                "46080": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #4"
+                },
+                "53760": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #4"
+                },
+                "56832": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Serum #4"
+                },
+                "59904": {
+                    "length": 1536,
+                    "name": "bass rapid #4 - Serum #4"
+                },
+                "61440": {
+                    "length": 1536,
+                    "name": "bass rapid #4 - Serum #4"
+                }
+            },
+            "Pattern 12": {
+                "27168": {
+                    "length": 477,
+                    "name": "Pattern 12"
+                }
+            },
+            "Kult": {
+                "19968": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Kult"
+                },
+                "23040": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Kult"
+                },
+                "26112": {
+                    "length": 1536,
+                    "name": "bass rapid #4 - Kult"
+                },
+                "33792": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Kult"
+                },
+                "36864": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Kult"
+                },
+                "39936": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Kult"
+                },
+                "43008": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Kult"
+                },
+                "46080": {
+                    "length": 3072,
+                    "name": "bass rapid #4 - Kult"
+                }
+            },
+            "Channel volume": {
+                "0": {
+                    "length": 49152,
+                    "name": "Channel volume"
+                }
+            },
+            "Pianoteq 7 hi": {
+                "43008": {
+                    "length": 768,
+                    "name": "piano stabs"
+                },
+                "43776": {
+                    "length": 768,
+                    "name": "piano stabs"
+                },
+                "44544": {
+                    "length": 768,
+                    "name": "piano stabs"
+                },
+                "45312": {
+                    "length": 768,
+                    "name": "piano stabs"
+                },
+                "46080": {
+                    "length": 768,
+                    "name": "piano stabs"
+                },
+                "46848": {
+                    "length": 768,
+                    "name": "piano stabs"
+                },
+                "47616": {
+                    "length": 768,
+                    "name": "piano stabs"
+                },
+                "48384": {
+                    "length": 768,
+                    "name": "piano stabs"
+                },
+                "49152": {
+                    "length": 768,
+                    "name": "piano stabs #3"
+                },
+                "49920": {
+                    "length": 768,
+                    "name": "piano stabs #3"
+                },
+                "50688": {
+                    "length": 768,
+                    "name": "piano stabs #3"
+                },
+                "51456": {
+                    "length": 768,
+                    "name": "piano stabs #3"
+                },
+                "52224": {
+                    "length": 768,
+                    "name": "piano stabs #3"
+                },
+                "52992": {
+                    "length": 768,
+                    "name": "piano stabs #3"
+                },
+                "53760": {
+                    "length": 768,
+                    "name": "piano stabs #3"
+                },
+                "54528": {
+                    "length": 768,
+                    "name": "piano stabs #3"
+                },
+                "55296": {
+                    "length": 768,
+                    "name": "piano stabs #3"
+                },
+                "56064": {
+                    "length": 768,
+                    "name": "piano stabs #3"
+                }
+            },
+            "piano hi": {
+                "35328": {
+                    "length": 3072,
+                    "name": "piano hi"
+                },
+                "38400": {
+                    "length": 3072,
+                    "name": "piano hi"
+                },
+                "41472": {
+                    "length": 3072,
+                    "name": "piano hi"
+                },
+                "44544": {
+                    "length": 3072,
+                    "name": "piano hi"
+                },
+                "47616": {
+                    "length": 3072,
+                    "name": "piano hi"
+                },
+                "50688": {
+                    "length": 3072,
+                    "name": "piano hi"
+                },
+                "53760": {
+                    "length": 3072,
+                    "name": "piano hi"
+                },
+                "62976": {
+                    "length": 3072,
+                    "name": "pianarp"
+                },
+                "66048": {
+                    "length": 3456,
+                    "name": "pianarp #2"
+                }
+            },
+            "Pianoteq 7 hi - To piano glitch mode": {
+                "0": {
+                    "length": 60672,
+                    "name": "Pianoteq 7 hi - To piano glitch mode"
+                }
+            },
+            "Pianoteq 7 hi - To Master": {
+                "0": {
+                    "length": 67776,
+                    "name": "Pianoteq 7 hi - To Master"
+                }
+            },
+            "double snap": {},
+            "piano break plain bass chords": {
+                "27648": {
+                    "length": 3072,
+                    "name": "piano break plain bass chords"
+                },
+                "30720": {
+                    "length": 3072,
+                    "name": "piano break"
+                },
+                "33792": {
+                    "length": 3072,
+                    "name": "piano break"
+                },
+                "36864": {
+                    "length": 3072,
+                    "name": "piano break"
+                },
+                "39936": {
+                    "length": 3072,
+                    "name": "piano break"
+                },
+                "43008": {
+                    "length": 3072,
+                    "name": "piano break"
+                },
+                "46080": {
+                    "length": 3072,
+                    "name": "piano break"
+                },
+                "49152": {
+                    "length": 3072,
+                    "name": "piano break"
+                },
+                "52224": {
+                    "length": 1536,
+                    "name": "piano break"
+                },
+                "62976": {
+                    "length": 3456,
+                    "name": "piano break #2"
+                },
+                "66048": {
+                    "length": 4608,
+                    "name": "piano break #3"
+                }
+            },
+            "double snap #2": {
+                "27648": {
+                    "length": 3072,
+                    "name": "piano sub"
+                },
+                "30720": {
+                    "length": 3072,
+                    "name": "piano sub"
+                },
+                "33792": {
+                    "length": 3072,
+                    "name": "piano sub"
+                },
+                "36864": {
+                    "length": 1536,
+                    "name": "piano sub"
+                },
+                "38400": {
+                    "length": 1536,
+                    "name": "piano sub"
+                },
+                "62976": {
+                    "length": 3072,
+                    "name": "piano sub"
+                },
+                "66048": {
+                    "length": 4608,
+                    "name": "piano sub #2"
+                }
+            },
+            "Subvert - double snap #2 - Chain1 Reducer Ratio": {
+                "0": {
+                    "length": 27648,
+                    "name": "Subvert - double snap #2 - Chain1 Reducer Ratio"
+                }
+            },
+            "Collider Boom Kick 02": {
+                "0": {
+                    "length": 49152,
+                    "name": "[bus] claps - Volume"
+                }
+            },
+            "Collider Boom Kick 02 - EQ band 1 (low shelf) level": {
+                "0": {
+                    "length": 49152,
+                    "name": "Collider Boom Kick 02 - EQ band 1 (low shelf) level"
+                }
+            },
+            "angry saw": {},
+            "Pianoteq 7 low": {},
+            "Hyper WinterBeach Clap": {},
+            "calm saw": {},
+            "snow": {}
+        }
+    }
+}

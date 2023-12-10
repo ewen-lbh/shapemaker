@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "research-flp"
+version = "0.1.0"
+description = ""
+authors = ["Ewen Le Bihan <hey@ewen.works>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+flpinspect = "^0.1.0"
+rich = "^13.7.0"
+docopt = "^0.6.2"
+pyflp = "^2.2.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
