@@ -7,18 +7,6 @@ from docopt import docopt
 import pyflp
 import json
 
-here = Path(__file__).parent
-args = docopt(__doc__)
-
-project = pyflp.parse(here / args['<input_flp_file>'])
-
-out = {
-        "info": {
-            "name": project.title,
-            "bpm": project.tempo,
-        },
-        "arrangements": {}
-    }
 
 def clip_type(clip) -> str:
     if hasattr(clip, "pattern"):
@@ -34,9 +22,23 @@ def clip_name(clip) -> str :
     else:
         return ""
 
+def key_to_midi_pitch(note: str) -> int:
+    letter = note[0]
+    if len(note) == 3:
+        sharp = True
+        octave = int(note[2])
+    else:
+        sharp = False
+        octave = int(note[1])
+    
+    letter_delta = {"C": -9, "D": -7, "E": -5, "F": -4, "G": -2, "A": 0, "B": 2}.get(letter, 0)
+    return 81 + 12 * (octave - 4) + letter_delta + int(sharp)
+
+
 def note_data(note):
     return {
             "key": note.key,
+            "pitch": key_to_midi_pitch(note.key),
             "length": note.length,
             "velocity": note.velocity
             }
@@ -64,18 +66,31 @@ def track_name(track) -> str:
 
     return clips_names[0]
 
-for arrangement in project.arrangements:
-    current_arrangement = {}
-    for track in arrangement.tracks:
-        current_track = {}
-        for clip in track:
-            current_track[clip.position] = {
-                    "length": clip.length,
-                    "name": clip_name(clip),
-                    "data": clip_data(clip),
-                    }
-        current_arrangement[track_name(track)] = current_track
-    out["arrangements"][arrangement.name] = current_arrangement
+if __name__ == "__main__":
+    here = Path(__file__).parent
+    args = docopt(__doc__)
 
-(here / args['<output_json_file>']).write_text(json.dumps(out, indent=4))
+    project = pyflp.parse(here / args['<input_flp_file>'])
+
+    out = {
+            "info": {
+                "name": project.title,
+                "bpm": project.tempo,
+            },
+            "arrangements": {}
+        }
+    for arrangement in project.arrangements:
+        current_arrangement = {}
+        for track in arrangement.tracks:
+            current_track = {}
+            for clip in track:
+                current_track[clip.position] = {
+                        "length": clip.length,
+                        "name": clip_name(clip),
+                        "data": clip_data(clip),
+                        }
+            current_arrangement[track_name(track)] = current_track
+        out["arrangements"][arrangement.name] = current_arrangement
+
+    (here / args['<output_json_file>']).write_text(json.dumps(out, indent=4))
 
