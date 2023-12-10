@@ -20,13 +20,40 @@ out = {
         "arrangements": {}
     }
 
-def clip_name(clip) -> str :
+def clip_type(clip) -> str:
     if hasattr(clip, "pattern"):
-        return clip.pattern.name
+        return "pattern"
     elif hasattr(clip, "channel"):
+        return "channel"
+
+def clip_name(clip) -> str :
+    if clip_type(clip) == "pattern":
+        return clip.pattern.name
+    elif clip_type(clip) == "channel":
         return clip.channel.name
     else:
         return ""
+
+def note_data(note):
+    return {
+            "key": note.key,
+            "length": note.length,
+            "velocity": note.velocity
+            }
+
+def clip_data(clip):
+    if clip_type(clip) == "pattern":
+        pat = clip.pattern
+        return {
+            "notes": {note.position: note_data(note) for note in pat.notes },
+            "length": pat.length
+        }
+    elif clip_type(clip) == "channel":
+        chan = clip.channel
+        if isinstance(chan, pyflp.channel.Automation):
+            return { point.position: point.value for point in chan }
+        return {}
+    return {}
 
 
 def track_name(track) -> str:
@@ -44,7 +71,8 @@ for arrangement in project.arrangements:
         for clip in track:
             current_track[clip.position] = {
                     "length": clip.length,
-                    "name": clip_name(clip)
+                    "name": clip_name(clip),
+                    "data": clip_data(clip),
                     }
         current_arrangement[track_name(track)] = current_track
     out["arrangements"][arrangement.name] = current_arrangement
