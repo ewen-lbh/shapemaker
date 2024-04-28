@@ -9,3 +9,7 @@ audiosync/
 !src/audiosync/
 out.mp4
 frames
+
+fixtures/
+!fixtures/schedule-hell*
+*.exe
