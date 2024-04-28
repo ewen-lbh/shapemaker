@@ -93,7 +93,7 @@ pub struct Context<'a, AdditionalContext = ()> {
     pub extra: AdditionalContext,
 }
 
-const DURATION_OVERRIDE: Option<usize> = Some(30 * 1000);
+const DURATION_OVERRIDE: Option<usize> = Some(2 * 60 * 1000);
 
 pub trait GetOrDefault {
     type Item;
