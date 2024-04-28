@@ -271,7 +271,7 @@ impl Canvas {
             // portrait: resolution is height
             ((resolution as f32 / aspect_ratio) as usize, resolution)
         };
-        let mut spawned = std::process::Command::new("convert")
+        let mut spawned = std::process::Command::new("magick")
             .args(["-background", "none"])
             .args(["-size", &format!("{}x{}", width, height)])
             .arg("-")

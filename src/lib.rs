@@ -274,8 +274,8 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let result = std::process::Command::new("ffmpeg")
             .args(["-hide_banner", "-loglevel", "error"])
             .args(["-framerate", &self.fps.to_string()])
-            .args(["-pattern_type", "glob"])
-            .args(["-i", &format!("{}/*.png", self.frames_output_directory)])
+            // .args(["-pattern_type", "glob"]) // not available on Windows
+            .args(["-i", &format!("{}/%0{}d.png", self.frames_output_directory, self.total_frames().to_string().len())])
             .args(["-i", self.audiofile.to_str().unwrap()])
             .args(["-t", &format!("{}", self.duration_ms() as f32 / 1000.0)])
             .args(["-vcodec", "png"])
