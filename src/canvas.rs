@@ -5,7 +5,7 @@ use std::{
     ops::Range,
 };
 
-use chrono::NaiveDateTime;
+use chrono::DateTime;
 use rand::Rng;
 use serde::Deserialize;
 
@@ -53,7 +53,8 @@ impl Canvas {
     }
 
     pub fn root(&mut self) -> &mut Layer {
-        self.layer("root").unwrap()
+        self.layer("root")
+            .expect("Layer 'root' should always exist in a canvas")
     }
 
     pub fn add_object(
@@ -364,7 +365,7 @@ impl Canvas {
 pub fn milliseconds_to_timestamp(ms: usize) -> String {
     format!(
         "{}",
-        NaiveDateTime::from_timestamp_millis(ms as i64)
+        DateTime::from_timestamp_millis(ms as i64)
             .unwrap()
             .format("%H:%M:%S%.3f")
     )
@@ -453,7 +454,7 @@ pub enum Fill {
     Dotted,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Color {
     Black,
     White,

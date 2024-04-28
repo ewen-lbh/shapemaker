@@ -1,6 +1,14 @@
-use std::{collections::HashMap, path::{PathBuf, Path}, fs::File, io::{BufReader, Write}};
+use std::{
+    collections::HashMap,
+    fmt::Display,
+    fs::File,
+    io::{BufReader, Write},
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
+
+use crate::sync::SyncData;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Stem {
@@ -13,8 +21,6 @@ pub struct Stem {
     #[serde(default)]
     pub notes: HashMap<usize, Vec<Note>>,
 
-    #[serde(default)]
-    pub path: PathBuf,
     #[serde(default)]
     pub name: String,
 }
@@ -67,6 +73,12 @@ impl Note {
 
     pub fn is_on(&self) -> bool {
         !self.is_off()
+    }
+}
+
+impl Display for SyncData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SyncData @ {} bpm\n{} stems", self.bpm, self.stems.len())
     }
 }
 

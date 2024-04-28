@@ -4,9 +4,8 @@ set wipe "                                                          "
 
 for i in (seq 1 16)
     for j in (seq 1 9)
-        echo -ne Making piece $i:$j\r
-        shapemaker piece-$i-$j.svg --colors $argv[1] \
-            --grid-size 2x2 \
+        echo -ne Making piece $i:$j
+        shapemaker image piece-$i-$j.svg --color $argv[1] # --grid-size 2x2
             # --render-grid \
             # --canvas-padding 0 \
             # --objects-count 0..1 \
@@ -14,7 +13,7 @@ for i in (seq 1 16)
             # --empty-shape-stroke 4 \
             # --dot-radius 5 \
             # --small-circle-radius 10 \
-        2>/dev/null &
+	    # 2>/dev/null &
     end
 end
 

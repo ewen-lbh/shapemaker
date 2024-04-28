@@ -52,7 +52,7 @@ impl Layer {
                 }
                 Object::Text(position, content) => {
                     group = group.add(
-                        svg::node::element::Text::new()
+                        svg::node::element::Text::new(content.clone())
                             .set("x", position.coords(cell_size).0)
                             .set("y", position.coords(cell_size).1)
                             .set("font-size", format!("{}pt", object_sizes.font_size))
@@ -74,8 +74,7 @@ impl Layer {
                                     }
                                     _ => "".to_string(),
                                 },
-                            )
-                            .add(svg::node::Text::new(content.clone())),
+                            ),
                     );
                 }
                 Object::Rectangle(start, end) => {

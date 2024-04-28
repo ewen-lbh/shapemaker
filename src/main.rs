@@ -1,19 +1,18 @@
 use docopt::Docopt;
 use serde::Deserialize;
 use serde_json;
-use shapemaker::{
-    Anchor, AudioSyncPaths, Canvas, CenterAnchor, Color, ColorMapping, Fill, Object, Video,
-};
+use shapemaker::{Anchor, Canvas, CenterAnchor, Color, ColorMapping, Fill, Object, Video};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
+use std::path::PathBuf;
 
 const USAGE: &'static str = "
 ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 █░▄▄█░████░▄▄▀█▀▄▄▀█░▄▄█░▄▀▄░█░▄▄▀█░█▀█░▄▄█░▄▄▀█
 █▄▄▀█░▄▄░█░▀▀░█░▀▀░█░▄▄█░█▄█░█░▀▀░█░▄▀█░▄▄█░▀▀▄█
 █▄▄▄█▄██▄█▄██▄█░████▄▄▄█▄███▄█▄██▄█▄█▄█▄▄▄█▄█▄▄█
-▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀vVERSION▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀v?.?.?▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 
 Usage: shapemaker (image|video) [options] [--color <mapping>...] <file>
        shapemaker --help
@@ -41,7 +40,8 @@ Options:
     Video-specific:
     --workers <number>             Number of parallel threads to use for rendering [default: 8]
     --fps <fps>                    Frames per second [default: 30]
-    --sync-to <directory>          Directory containing the audio files to sync to.
+    --audio <file>                 Audio file to use for the video
+    --sync-with <directory>        Directory containing the audio files to sync to.
                                    The directory must contain:
                                    - stems/(instrument name).wav — stems
                                    - landmarks.json — JSON file mapping time in milliseconds to marker text (see ./landmarks.py)
@@ -52,7 +52,7 @@ Options:
 ";
 
 fn main() {
-    let args: Args = Docopt::new(USAGE.replace("VERSION", env!("CARGO_PKG_VERSION")))
+    let args: Args = Docopt::new(USAGE.replace("?.?.?", env!("CARGO_PKG_VERSION")))
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
 
@@ -61,12 +61,13 @@ fn main() {
         std::process::exit(0);
     }
 
-    let mut canvas = Canvas::default_settings();
+    let mut canvas = Canvas::new(vec![]);
     canvas.colormap = load_colormap(&args);
     set_canvas_settings_from_args(&args, &mut canvas);
 
     if args.cmd_image && !args.cmd_video {
-        *canvas.root() = canvas.random_layer("main");
+        canvas.layers.push(canvas.random_layer("main"));
+        canvas.set_background(Color::White);
         let aspect_ratio = canvas.grid_size.0 as f32 / canvas.grid_size.1 as f32;
         match Canvas::save_as_png(
             &args.arg_file,
@@ -80,19 +81,7 @@ fn main() {
         return;
     }
 
-    let audiosync_dir = args.flag_sync_to.unwrap_or("audiosync".to_string());
-
     Video::<(Anchor, CenterAnchor, Color, Color)>::new()
-        .sync_to(
-            &AudioSyncPaths {
-                stems: audiosync_dir.clone() + "/stems/",
-                landmarks: audiosync_dir.clone() + "/landmarks.json",
-                complete: audiosync_dir.clone() + "/full.mp3",
-                bpm: audiosync_dir.clone() + "/bpm.txt",
-                midi: audiosync_dir.clone() + "/full.midi",
-            },
-            HashMap::new(),
-        )
         .set_fps(args.flag_fps.unwrap_or(30))
         .set_initial_canvas(canvas)
         .init(&|canvas: _, context: _| {
@@ -103,14 +92,29 @@ fn main() {
                 canvas.random_color(),
             );
             canvas.set_background(context.extra.3);
+            context.dump_stems("stems_data".into())
         })
+        .set_audio(args.flag_audio.unwrap().into())
+        .sync_audio_with(&args.flag_sync_with.unwrap())
         .each_beat(&|canvas, _| {
+            let current_background = canvas.background;
+            let mut background_to_use = canvas.random_color();
+            if let Some(bg) = current_background {
+                while bg == background_to_use {
+                    background_to_use = canvas.random_color();
+                }
+            }
             canvas.set_background(canvas.random_color());
         })
         .on_stem(
-            "kick",
+            "anchor kick",
             0.7,
             &|canvas, context| {
+                println!(
+                    "anchor kick at {}: amplitude_relative is {}",
+                    context.timestamp,
+                    context.stem("anchor kick").amplitude_relative()
+                );
                 canvas.root().add_object(
                     "kick",
                     Object::BigCircle(context.extra.1),
@@ -143,7 +147,8 @@ fn main() {
             let args = argumentsline.splitn(3, ' ').collect::<Vec<_>>();
             canvas.remove_object(args[0]);
         })
-        .render_to(args.arg_file, args.flag_workers.unwrap_or(8));
+        .render_to(args.arg_file, args.flag_workers.unwrap_or(8))
+        .unwrap();
 }
 
 #[derive(Debug, Deserialize)]
@@ -165,7 +170,8 @@ struct Args {
     flag_objects_count: Option<String>,
     flag_polygon_vertices: Option<String>,
     flag_fps: Option<usize>,
-    flag_sync_to: Option<String>,
+    flag_sync_with: Option<String>,
+    flag_audio: Option<String>,
     flag_resolution: Option<usize>,
     flag_workers: Option<usize>,
 }
@@ -219,6 +225,10 @@ fn load_colormap(args: &Args) -> ColorMapping {
     } else {
         let mut colormap: HashMap<String, String> = HashMap::new();
         for mapping in &args.flag_color {
+            if !mapping.contains(":") {
+                println!("Invalid color mapping: {}", mapping);
+                std::process::exit(1);
+            }
             let mut split = mapping.split(':');
             let color = split.next().unwrap();
             let hex = split.next().unwrap();

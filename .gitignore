@@ -6,4 +6,6 @@ test.svg
 gallery/myriad/bar*
 gallery/myriad/piece*
 audiosync/
+!src/audiosync/
 out.mp4
+frames
