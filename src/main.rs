@@ -1,4 +1,4 @@
-use shapemaker::{Canvas, Color, Fill, Object, Region, Video};
+use shapemaker::{Canvas, Color, Fill, Layer, Object, Region, Video};
 mod cli;
 pub use cli::{canvas_from_cli, cli_args};
 
@@ -22,59 +22,98 @@ fn main() {
         return;
     }
 
-    Video::<State>::new()
-        .set_fps(args.flag_fps.unwrap_or(30))
-        .set_initial_canvas(canvas)
+    let mut video = Video::<State>::new(canvas);
+    video.duration_override = args.flag_duration.map(|seconds| seconds * 1000);
+    video.fps = args.flag_fps.unwrap_or(30);
+    video.audiofile = args.flag_audio.unwrap().into();
+
+    video
         .init(&|canvas: _, context: _| {
             context.extra = State {
-                kick_region: Region::new(2, 2, 4, 4),
+                bass_pattern_at: Region::from_origin_and_size((6, 3), (3, 3)),
+                first_kick_happened: false,
             };
             canvas.set_background(Color::Black);
         })
-        .set_audio(args.flag_audio.unwrap().into())
         .sync_audio_with(&args.flag_sync_with.unwrap())
+        .on_note("anchor kick", &|_, ctx| {
+            // ctx.extra.bass_pattern_at = region_cycle(&canvas.world_region, None);
+            ctx.extra.first_kick_happened = true;
+        })
         .on_note("bass", &|canvas, ctx| {
-            let mut new_layer = canvas.random_layer_within("bass", &ctx.extra.kick_region);
+            let mut new_layer = canvas.random_layer_within("bass", &ctx.extra.bass_pattern_at);
             new_layer.paint_all_objects(Fill::Solid(Color::White));
             canvas.replace_or_create_layer("bass", new_layer);
         })
-        .on_note("anchor kick", &|canvas, ctx| {
-            let new_kick_region = region_cycle(&canvas.world_region, &ctx.extra.kick_region);
-
-            let (dx, dy) = new_kick_region - ctx.extra.kick_region;
-            canvas.layer("bass").unwrap().move_all_objects(dx, dy);
-
-            ctx.extra.kick_region = new_kick_region;
-        })
         .on_note("powerful clap hit, clap, perclap", &|canvas, ctx| {
-            let mut new_layer = canvas.random_layer_within(
-                "claps",
-                &region_cycle(&canvas.world_region, &ctx.extra.kick_region),
-            );
+            let mut new_layer =
+                canvas.random_layer_within("claps", &ctx.extra.bass_pattern_at.translated(2, 0));
             new_layer.paint_all_objects(Fill::Solid(Color::Red));
             canvas.replace_or_create_layer("claps", new_layer)
         })
-        .on("start credits", &|canvas, _| {
+        .on_note("qanda", &|canvas, ctx| {
+            if ctx.stem("qanda").amplitude_relative() < 0.7 {
+                return;
+            }
+
+            let mut new_layer =
+                canvas.random_layer_within("qanda", &ctx.extra.bass_pattern_at.translated(-2, 0));
+            new_layer.paint_all_objects(Fill::Solid(Color::Orange));
+            canvas.replace_or_create_layer("qanda", new_layer)
+        })
+        .on_note("brokenup", &|canvas, ctx| {
+            let mut new_layer = canvas
+                .random_layer_within("brokenup", &ctx.extra.bass_pattern_at.translated(0, -2));
+            new_layer.paint_all_objects(Fill::Solid(Color::Yellow));
+            canvas.replace_or_create_layer("brokenup", new_layer);
+        })
+        .on_note("goup", &|canvas, ctx| {
+            let mut new_layer =
+                canvas.random_layer_within("goup", &ctx.extra.bass_pattern_at.translated(0, 2));
+            new_layer.paint_all_objects(Fill::Solid(Color::Yellow));
+            canvas.replace_or_create_layer("goup", new_layer);
+        })
+        .when_remaining(10, &|canvas, _| {
             canvas.root().add_object(
                 "credits text",
                 Object::RawSVG(Box::new(svg::node::Text::new("by ewen-lbh"))),
                 None,
             );
         })
-        .on("end credits", &|canvas, _| {
-            canvas.remove_object("credits text");
-        })
         .command("remove", &|argumentsline, canvas, _| {
             let args = argumentsline.splitn(3, ' ').collect::<Vec<_>>();
             canvas.remove_object(args[0]);
         })
-        .render_to(args.arg_file, args.flag_workers.unwrap_or(8))
+        .render_to(
+            args.arg_file,
+            args.flag_workers.unwrap_or(8),
+            args.flag_preview,
+        )
         .unwrap();
+}
+
+fn update_stem_position(
+    ctx: &mut shapemaker::Context<State>,
+    canvas: &mut Canvas,
+    layer_name: &str,
+    offset: usize,
+) {
+    let (dx, dy) = ctx.extra.bass_pattern_at
+        - region_cycle_with_offset(
+            &canvas.world_region,
+            Some(&ctx.extra.bass_pattern_at),
+            offset,
+        );
+    match canvas.layer(layer_name) {
+        Some(l) => l.move_all_objects(dx, dy),
+        _ => (),
+    }
 }
 
 #[derive(Default)]
 struct State {
-    kick_region: Region,
+    first_kick_happened: bool,
+    bass_pattern_at: Region,
 }
 
 fn color_cycle(current_color: Color) -> Color {
@@ -92,20 +131,37 @@ fn color_cycle(current_color: Color) -> Color {
     }
 }
 
-fn region_cycle(world: &Region, current: &Region) -> Region {
-    let size = (current.width(), current.height());
-    let mut new_region = current.clone();
+fn region_cycle_with_offset(world: &Region, current: Option<&Region>, offset: usize) -> Region {
+    if offset == 0 {
+        return current.unwrap().clone();
+    }
+
+    if offset == 1 {
+        return region_cycle(world, current);
+    }
+
+    region_cycle_with_offset(world, current, offset - 1)
+}
+
+fn region_cycle(world: &Region, current: Option<&Region>) -> Region {
+    let mut region = if let Some(current) = current {
+        current.clone()
+    } else {
+        Region::from_origin_and_size((1, 1), (2, 2))
+    };
+
+    let size = (region.width(), region.height());
     // Move along x axis if possible
-    if current.end.0 + size.0 <= world.end.0 {
-        new_region.translate(size.0 as i32, 0)
+    if region.end.0 + size.0 <= world.end.0 - 1 {
+        region.translate(size.0 as i32, 0)
     }
     // Else go to x=0 and move along y axis
-    else if current.end.1 + size.1 <= world.end.1 {
-        new_region = Region::new(2, current.end.1, size.0 + 2, current.end.1 + size.1)
+    else if region.end.1 + size.1 <= world.end.1 - 1 {
+        region = Region::new(2, region.end.1, size.0 + 2, region.end.1 + size.1)
     }
     // Else go to origin
     else {
-        new_region = Region::from_origin(size)
+        region = Region::from_origin_and_size((1, 1), size)
     }
-    new_region
+    region
 }

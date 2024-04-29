@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shapemaker Preview</title>
+    <script>
+        {{{ enginesource }}}
+    </script>
+    {{!-- <script src="preview/engine.js"></script> --}}
+    <style>
+        .frame.shown {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        .frame.shown>svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        audio {
+            position: fixed;
+            z-index: 100;
+            bottom: 0;
+            left: 0;
+        }
+    </style>
+</head>
+
+<body style="background-color: {{background}};">
+    <audio src="{{ audiopath }}" controls onplay="startVideo()" onpause="stopVideo()"></audio>
+    {{#each frames}}
+    <div style="display: none;" id="frame-{{@key}}" class="frame">
+        {{{ this }}}
+    </div>
+    {{/each}}
+</body>
+
+</html>

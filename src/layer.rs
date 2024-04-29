@@ -21,6 +21,11 @@ impl Layer {
         }
     }
 
+    // Flush the render cache.
+    pub fn flush(&mut self) -> () {
+        self._render_cache = None;
+    }
+
     pub fn replace(&mut self, with: Layer) -> () {
         self.objects = with.objects.clone();
         self._render_cache = None;

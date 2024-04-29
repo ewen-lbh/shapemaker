@@ -36,6 +36,8 @@ Options:
     --workers <number>             Number of parallel threads to use for rendering [default: 8]
     --fps <fps>                    Frames per second [default: 30]
     --audio <file>                 Audio file to use for the video
+    --duration <seconds>           Number of seconds to render. If not set, the video will be as long as the audio file.
+    --preview                      Only create preview.html, not the output video. Preview.html will be created in the same directory as <file>, but <file> will not be created.
     --sync-with <directory>        Directory containing the audio files to sync to.
                                    The directory must contain:
                                    - stems/(instrument name).wav — stems
@@ -89,6 +91,8 @@ pub struct Args {
     pub flag_audio: Option<String>,
     pub flag_resolution: Option<usize>,
     pub flag_workers: Option<usize>,
+    pub flag_duration: Option<usize>,
+    pub flag_preview: bool,
 }
 
 fn set_canvas_settings_from_args(args: &Args, canvas: &mut Canvas) {

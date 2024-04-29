@@ -3,6 +3,8 @@ pub use color::*;
 mod audio;
 pub use audio::*;
 mod sync;
+use itertools::Itertools;
+use midly::write;
 use sync::SyncData;
 pub use sync::Syncable;
 mod layer;
@@ -10,17 +12,19 @@ pub use layer::*;
 mod canvas;
 pub use canvas::*;
 mod midi;
+mod preview;
 use anyhow::Result;
 use chrono::NaiveDateTime;
 use indicatif::{ProgressBar, ProgressStyle};
 pub use midi::MidiSynchronizer;
 use std::cmp::min;
+use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::fs::{self, create_dir, create_dir_all, remove_dir_all};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
-use std::time;
+use std::{iter, time};
 
 const PROGRESS_BARS_STYLE: &str =
     "{spinner:.cyan} {percent:03.bold.cyan}% {msg:<30} [{bar:100.bold.blue/dim.blue}] {eta:.cyan}";
@@ -47,6 +51,7 @@ pub struct Video<C> {
     pub syncdata: SyncData,
     pub audiofile: PathBuf,
     pub resolution: usize,
+    pub duration_override: Option<usize>,
 }
 
 pub struct Hook<C> {
@@ -93,9 +98,8 @@ pub struct Context<'a, AdditionalContext = ()> {
     pub audiofile: PathBuf,
     pub later_hooks: Vec<LaterHook<AdditionalContext>>,
     pub extra: AdditionalContext,
+    pub duration_override: Option<usize>,
 }
-
-const DURATION_OVERRIDE: Option<usize> = Some(2 * 60 * 1000);
 
 pub trait GetOrDefault {
     type Item;
@@ -146,19 +150,16 @@ impl<'a, C> Context<'a, C> {
     }
 
     pub fn duration_ms(&self) -> usize {
-        self.syncdata
-            .stems
-            .values()
-            .map(|stem| stem.duration_ms)
-            .map(|duration| {
-                if let Some(duration_override) = DURATION_OVERRIDE {
-                    duration_override
-                } else {
-                    duration
-                }
-            })
-            .max()
-            .unwrap()
+        match self.duration_override {
+            Some(duration) => duration,
+            None => self
+                .syncdata
+                .stems
+                .values()
+                .map(|stem| stem.duration_ms)
+                .max()
+                .unwrap(),
+        }
     }
 
     pub fn later_frames(&mut self, delay: usize, render_function: &'static LaterRenderFunction<C>) {
@@ -241,15 +242,15 @@ impl SpinState {
 
 impl<AdditionalContext: Default> Default for Video<AdditionalContext> {
     fn default() -> Self {
-        Self::new()
+        Self::new(Canvas::new(vec!["root"]))
     }
 }
 
 impl<AdditionalContext: Default> Video<AdditionalContext> {
-    pub fn new() -> Self {
+    pub fn new(canvas: Canvas) -> Self {
         Self {
             fps: 30,
-            initial_canvas: Canvas::new(vec!["root"]),
+            initial_canvas: canvas,
             hooks: vec![],
             commands: vec![],
             frames: vec![],
@@ -257,13 +258,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             resolution: 1000,
             syncdata: SyncData::default(),
             audiofile: PathBuf::new(),
-        }
-    }
-
-    pub fn set_audio(self, final_audio: PathBuf) -> Self {
-        Self {
-            audiofile: final_audio,
-            ..self
+            duration_override: None,
         }
     }
 
@@ -327,17 +322,6 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             resolution,
             svg_string,
         )
-    }
-
-    pub fn set_fps(self, fps: usize) -> Self {
-        Self { fps, ..self }
-    }
-
-    pub fn set_initial_canvas(self, canvas: Canvas) -> Self {
-        Self {
-            initial_canvas: canvas,
-            ..self
-        }
     }
 
     pub fn init(self, render_function: &'static RenderFunction<AdditionalContext>) -> Self {
@@ -527,6 +511,22 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         Self { hooks, ..self }
     }
 
+    pub fn when_remaining(
+        self,
+        seconds: usize,
+        render_function: &'static RenderFunction<AdditionalContext>,
+    ) -> Self {
+        let hook = Hook {
+            when: Box::new(move |_, ctx, _, _| {
+                ctx.ms >= ctx.duration_ms().max(seconds * 1000) - seconds * 1000
+            }),
+            render_function: Box::new(render_function),
+        };
+        let mut hooks = self.hooks;
+        hooks.push(hook);
+        Self { hooks, ..self }
+    }
+
     pub fn at_timestamp(
         self,
         timestamp: &'static str,
@@ -604,7 +604,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
     }
 
     pub fn duration_ms(&self) -> usize {
-        if let Some(duration_override) = DURATION_OVERRIDE {
+        if let Some(duration_override) = self.duration_override {
             return duration_override;
         }
 
@@ -616,8 +616,26 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             .unwrap()
     }
 
-    pub fn render_to(&self, output_file: String, workers_count: usize) -> Result<&Self> {
-        self.render_composition(output_file, vec!["*"], true, workers_count)
+    // rendered_svg_frames should map ms timestamps to SVG strings
+    pub fn output_preview(
+        &self,
+        canvas: &Canvas,
+        rendered_svg_frames: HashMap<usize, String>,
+        output_file: PathBuf,
+    ) -> Result<&Self> {
+        let contents =
+            preview::render_template(rendered_svg_frames, canvas, self.audiofile.clone());
+        fs::write(output_file, contents)?;
+        Ok(self)
+    }
+
+    pub fn render_to(
+        &mut self,
+        output_file: String,
+        workers_count: usize,
+        preview_only: bool,
+    ) -> Result<&Self> {
+        self.render_composition(output_file, vec!["*"], true, workers_count, preview_only)
     }
 
     pub fn render_layers_in(
@@ -636,18 +654,19 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 composition,
                 false,
                 workers_count,
+                false,
             )?;
         }
         Ok(self)
     }
 
-    pub fn render_composition(
+    // Returns a triple of (SVG content, frame number, millisecond at frame)
+    pub fn render_frames(
         &self,
-        output_file: String,
+        progress_bar: &ProgressBar,
         composition: Vec<&str>,
         render_background: bool,
-        workers_count: usize,
-    ) -> Result<&Self> {
+    ) -> Vec<(String, usize, usize)> {
         let mut context = Context {
             frame: 0,
             beat: 0,
@@ -659,31 +678,14 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             extra: AdditionalContext::default(),
             later_hooks: vec![],
             audiofile: self.audiofile.clone(),
+            duration_override: self.duration_override,
         };
 
         let mut canvas = self.initial_canvas.clone();
+
         let mut previous_rendered_beat = 0;
         let mut previous_rendered_frame = 0;
-
-        let mut frame_writer_threads = vec![];
-        let mut frames_to_write: Vec<(String, usize)> = vec![];
-
-        remove_dir_all(self.frames_output_directory);
-        create_dir(self.frames_output_directory).unwrap();
-        create_dir_all(Path::new(&output_file).parent().unwrap()).unwrap();
-
-        let progress_bar = indicatif::ProgressBar::new(self.total_frames() as u64).with_style(
-            indicatif::ProgressStyle::with_template(
-                &(PROGRESS_BARS_STYLE.to_owned() + " ({pos:.bold} frames out of {len})"),
-            )
-            .unwrap()
-            .progress_chars("== "),
-        );
-        let total_frames = self.total_frames();
-        let aspect_ratio = canvas.grid_size.0 as f32 / canvas.grid_size.1 as f32;
-        let resolution = self.resolution;
-        let frames_output_directory = self.frames_output_directory;
-        progress_bar.set_message("Rendering frames to SVG");
+        let mut frames_to_write: Vec<(String, usize, usize)> = vec![];
 
         for _ in 0..self.duration_ms() {
             context.ms += 1_usize;
@@ -743,18 +745,71 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
 
             if context.frame != previous_rendered_frame {
                 let rendered = canvas.render(&composition, render_background);
-                std::fs::write(
-                    format!("{}/{}.svg", frames_output_directory, context.frame),
-                    &rendered,
-                )?;
-                frames_to_write.push((rendered, context.frame));
+
                 previous_rendered_beat = context.beat;
                 previous_rendered_frame = context.frame;
                 progress_bar.inc(1);
+
+                frames_to_write.push((rendered, context.frame, context.ms))
             }
         }
 
+        frames_to_write
+    }
+
+    pub fn render_composition(
+        &self,
+        output_file: String,
+        composition: Vec<&str>,
+        render_background: bool,
+        workers_count: usize,
+        preview_only: bool,
+    ) -> Result<&Self> {
+        let mut frame_writer_threads = vec![];
+        let mut frames_to_write: Vec<(String, usize, usize)> = vec![];
+
+        remove_dir_all(self.frames_output_directory);
+        create_dir(self.frames_output_directory).unwrap();
+        create_dir_all(Path::new(&output_file).parent().unwrap()).unwrap();
+
+        let progress_bar = indicatif::ProgressBar::new(self.total_frames() as u64).with_style(
+            indicatif::ProgressStyle::with_template(
+                &(PROGRESS_BARS_STYLE.to_owned() + " ({pos:.bold} frames out of {len})"),
+            )
+            .unwrap()
+            .progress_chars("== "),
+        );
+        let total_frames = self.total_frames();
+        let aspect_ratio =
+            self.initial_canvas.grid_size.0 as f32 / self.initial_canvas.grid_size.1 as f32;
+        let resolution = self.resolution;
+        let frames_output_directory = self.frames_output_directory;
+        progress_bar.set_message("Rendering frames to SVG");
+
+        for (frame, no, ms) in self.render_frames(&progress_bar, composition, render_background) {
+            std::fs::write(format!("{}/{}.svg", frames_output_directory, no), &frame)?;
+            frames_to_write.push((frame, no, ms));
+        }
+
+        self.output_preview(
+            &self.initial_canvas,
+            frames_to_write
+                .iter()
+                .map(|(f, _, ms)| (ms.clone(), f.clone()))
+                .collect(),
+            PathBuf::from(&output_file)
+                .parent()
+                .unwrap()
+                .join("preview.html"),
+        );
+
         progress_bar.println("Rendered frames to SVG");
+
+        if preview_only {
+            progress_bar.finish_and_clear();
+            return Ok(self);
+        }
+
         progress_bar.set_message("Rendering SVG frames to PNG");
         progress_bar.set_position(0);
 
@@ -767,7 +822,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 thread::Builder::new()
                     .name(format!("worker-{}", i))
                     .spawn(move || {
-                        for (frame_svg, frame_no) in &frames_to_write
+                        for (frame_svg, frame_no, _) in &frames_to_write
                             [i * chunk_size..min((i + 1) * chunk_size, frames_to_write.len())]
                         {
                             Video::<AdditionalContext>::build_frame(

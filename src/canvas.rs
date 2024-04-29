@@ -49,22 +49,52 @@ impl Region {
         Self::new(0, 0, end.0, end.1)
     }
 
+    pub fn from_origin_and_size(origin: (usize, usize), size: (usize, usize)) -> Self {
+        Self::new(
+            origin.0,
+            origin.1,
+            origin.0 + size.0 + 1,
+            origin.1 + size.1 + 1,
+        )
+    }
+
+    pub fn from_center_and_size(center: (usize, usize), size: (usize, usize)) -> Self {
+        let half_size = (size.0 / 2, size.1 / 2);
+        Self::new(
+            center.0 - half_size.0,
+            center.1 - half_size.1,
+            center.0 + half_size.0,
+            center.1 + half_size.1,
+        )
+    }
+
     // panics if the region is invalid
-    pub fn ensure_valid(&self) {
+    pub fn ensure_valid(self) -> Self {
         if self.start.0 >= self.end.0 || self.start.1 >= self.end.1 {
             panic!(
                 "Invalid region: start ({:?}) >= end ({:?})",
                 self.start, self.end
             )
         }
+        self
     }
 
     pub fn translate(&mut self, dx: i32, dy: i32) {
-        self.start.0 = (self.start.0 as i32 + dx) as usize;
-        self.start.1 = (self.start.1 as i32 + dy) as usize;
-        self.end.0 = (self.end.0 as i32 + dx) as usize;
-        self.end.1 = (self.end.1 as i32 + dy) as usize;
-        self.ensure_valid();
+        *self = self.translated(dx, dy);
+    }
+
+    pub fn translated(&self, dx: i32, dy: i32) -> Self {
+        Self {
+            start: (
+                (self.start.0 as i32 + dx) as usize,
+                (self.start.1 as i32 + dy) as usize,
+            ),
+            end: (
+                (self.end.0 as i32 + dx) as usize,
+                (self.end.1 as i32 + dy) as usize,
+            ),
+        }
+        .ensure_valid()
     }
 
     pub fn x_range(&self) -> Range<usize> {
