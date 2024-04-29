@@ -1,6 +1,8 @@
 use std::{
+    collections::HashMap,
     fs::File,
     io::{self, BufRead, BufReader},
+    path::PathBuf,
 };
 
 use itertools::Itertools;
@@ -61,27 +63,94 @@ impl ColorMapping {
             cyan: "cyan".to_string(),
         }
     }
-    pub fn from_json_file(path: &str) -> ColorMapping {
-        let file = File::open(path).unwrap();
-        let reader = BufReader::new(file);
-        let json: serde_json::Value = serde_json::from_reader(reader).unwrap();
+
+    pub fn from_cli_args(args: &Vec<String>) -> ColorMapping {
+        let mut colormap: HashMap<String, String> = HashMap::new();
+        for mapping in args {
+            if !mapping.contains(':') {
+                println!("Invalid color mapping: {}", mapping);
+                std::process::exit(1);
+            }
+            let mut split = mapping.split(':');
+            let color = split.next().unwrap();
+            let hex = split.next().unwrap();
+            colormap.insert(color.to_string(), hex.to_string());
+        }
+        ColorMapping::from_hashmap(colormap)
+    }
+
+    pub fn from_hashmap(hashmap: HashMap<String, String>) -> ColorMapping {
         ColorMapping {
-            black: json["black"].as_str().unwrap().to_string(),
-            white: json["white"].as_str().unwrap().to_string(),
-            red: json["red"].as_str().unwrap().to_string(),
-            green: json["green"].as_str().unwrap().to_string(),
-            blue: json["blue"].as_str().unwrap().to_string(),
-            yellow: json["yellow"].as_str().unwrap().to_string(),
-            orange: json["orange"].as_str().unwrap().to_string(),
-            purple: json["purple"].as_str().unwrap().to_string(),
-            brown: json["brown"].as_str().unwrap().to_string(),
-            cyan: json["cyan"].as_str().unwrap().to_string(),
-            pink: json["pink"].as_str().unwrap().to_string(),
-            gray: json["gray"].as_str().unwrap().to_string(),
+            black: hashmap
+                .get("black")
+                .unwrap_or(&ColorMapping::default().black)
+                .to_string(),
+            white: hashmap
+                .get("white")
+                .unwrap_or(&ColorMapping::default().white)
+                .to_string(),
+            red: hashmap
+                .get("red")
+                .unwrap_or(&ColorMapping::default().red)
+                .to_string(),
+            green: hashmap
+                .get("green")
+                .unwrap_or(&ColorMapping::default().green)
+                .to_string(),
+            blue: hashmap
+                .get("blue")
+                .unwrap_or(&ColorMapping::default().blue)
+                .to_string(),
+            yellow: hashmap
+                .get("yellow")
+                .unwrap_or(&ColorMapping::default().yellow)
+                .to_string(),
+            orange: hashmap
+                .get("orange")
+                .unwrap_or(&ColorMapping::default().orange)
+                .to_string(),
+            purple: hashmap
+                .get("purple")
+                .unwrap_or(&ColorMapping::default().purple)
+                .to_string(),
+            brown: hashmap
+                .get("brown")
+                .unwrap_or(&ColorMapping::default().brown)
+                .to_string(),
+            cyan: hashmap
+                .get("cyan")
+                .unwrap_or(&ColorMapping::default().cyan)
+                .to_string(),
+            pink: hashmap
+                .get("pink")
+                .unwrap_or(&ColorMapping::default().pink)
+                .to_string(),
+            gray: hashmap
+                .get("gray")
+                .unwrap_or(&ColorMapping::default().gray)
+                .to_string(),
         }
     }
 
-    pub fn from_css_file(path: &str) -> ColorMapping {
+    pub fn from_file(path: PathBuf) -> ColorMapping {
+        match path.extension().map(|e| e.to_str().unwrap()) {
+            Some("css") => ColorMapping::from_css_file(path),
+            Some("json") => ColorMapping::from_json_file(path),
+            ext => panic!(
+                "Invalid colormap file format. Must be css or json, is {:?}.",
+                ext
+            ),
+        }
+    }
+
+    pub fn from_json_file(path: PathBuf) -> ColorMapping {
+        let file = File::open(path).unwrap();
+        let reader = BufReader::new(file);
+        let json: HashMap<String, String> = serde_json::from_reader(reader).unwrap();
+        ColorMapping::from_hashmap(json)
+    }
+
+    pub fn from_css_file(path: PathBuf) -> ColorMapping {
         let file = File::open(path).unwrap();
         let lines = std::io::BufReader::new(file).lines();
         let mut mapping = ColorMapping::default();

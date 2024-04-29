@@ -1,11 +1,6 @@
 use docopt::Docopt;
 use serde::Deserialize;
-
 use shapemaker::{Canvas, ColorMapping};
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::BufReader;
-use std::path::PathBuf;
 
 const USAGE: &str = "
 ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
@@ -52,17 +47,19 @@ Options:
 ";
 
 pub fn cli_args() -> Args {
-    Docopt::new(USAGE.replace("?.?.?", env!("CARGO_PKG_VERSION")))
+    let args: Args = Docopt::new(USAGE.replace("?.?.?", env!("CARGO_PKG_VERSION")))
         .and_then(|d| d.deserialize())
-        .unwrap_or_else(|e| e.exit())
-}
+        .unwrap_or_else(|e| e.exit());
 
-pub fn canvas_from_cli(args: &Args) -> Canvas {
     if args.flag_version {
         println!("shapemaker {}", env!("CARGO_PKG_VERSION"));
         std::process::exit(0);
     }
 
+    args
+}
+
+pub fn canvas_from_cli(args: &Args) -> Canvas {
     let mut canvas = Canvas::new(vec![]);
     canvas.colormap = load_colormap(args);
     set_canvas_settings_from_args(args, &mut canvas);
@@ -137,78 +134,8 @@ fn set_canvas_settings_from_args(args: &Args, canvas: &mut Canvas) {
 
 fn load_colormap(args: &Args) -> ColorMapping {
     if let Some(file) = &args.flag_colors {
-        match PathBuf::from(file)
-            .extension()
-            .map(|ext| ext.try_into().unwrap())
-        {
-            Some("css") => ColorMapping::from_css_file(file),
-            Some("json") => ColorMapping::from_json_file(file),
-            ext => panic!(
-                "Invalid colormap file format. Must be css or json, is {:?}.",
-                ext
-            ),
-        }
+        ColorMapping::from_file(file.into())
     } else {
-        let mut colormap: HashMap<String, String> = HashMap::new();
-        for mapping in &args.flag_color {
-            if !mapping.contains(':') {
-                println!("Invalid color mapping: {}", mapping);
-                std::process::exit(1);
-            }
-            let mut split = mapping.split(':');
-            let color = split.next().unwrap();
-            let hex = split.next().unwrap();
-            colormap.insert(color.to_string(), hex.to_string());
-        }
-        ColorMapping {
-            black: colormap
-                .get("black")
-                .unwrap_or(&ColorMapping::default().black)
-                .to_string(),
-            white: colormap
-                .get("white")
-                .unwrap_or(&ColorMapping::default().white)
-                .to_string(),
-            red: colormap
-                .get("red")
-                .unwrap_or(&ColorMapping::default().red)
-                .to_string(),
-            green: colormap
-                .get("green")
-                .unwrap_or(&ColorMapping::default().green)
-                .to_string(),
-            blue: colormap
-                .get("blue")
-                .unwrap_or(&ColorMapping::default().blue)
-                .to_string(),
-            yellow: colormap
-                .get("yellow")
-                .unwrap_or(&ColorMapping::default().yellow)
-                .to_string(),
-            orange: colormap
-                .get("orange")
-                .unwrap_or(&ColorMapping::default().orange)
-                .to_string(),
-            purple: colormap
-                .get("purple")
-                .unwrap_or(&ColorMapping::default().purple)
-                .to_string(),
-            brown: colormap
-                .get("brown")
-                .unwrap_or(&ColorMapping::default().brown)
-                .to_string(),
-            pink: colormap
-                .get("pink")
-                .unwrap_or(&ColorMapping::default().pink)
-                .to_string(),
-            gray: colormap
-                .get("gray")
-                .unwrap_or(&ColorMapping::default().gray)
-                .to_string(),
-            cyan: colormap
-                .get("cyan")
-                .unwrap_or(&ColorMapping::default().cyan)
-                .to_string(),
-        }
+        ColorMapping::from_cli_args(&args.flag_color)
     }
 }
