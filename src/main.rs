@@ -1,4 +1,4 @@
-use shapemaker::{Canvas, Color, Fill, Layer, Object, Region, Video};
+use shapemaker::{Canvas, Color, Fill, Object, Region, Video};
 mod cli;
 pub use cli::{canvas_from_cli, cli_args};
 
