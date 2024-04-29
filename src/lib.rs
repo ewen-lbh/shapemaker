@@ -13,7 +13,7 @@ use chrono::NaiveDateTime;
 use indicatif::{ProgressBar, ProgressStyle};
 pub use midi::MidiSynchronizer;
 use std::cmp::min;
-use std::fmt::{self, Formatter};
+use std::fmt::{Formatter};
 use std::fs::{self, create_dir, create_dir_all, remove_dir_all};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -668,8 +668,8 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let mut frame_writer_threads = vec![];
         let mut frames_to_write: Vec<(String, usize)> = vec![];
 
-        remove_dir_all(self.frames_output_directory.clone());
-        create_dir(self.frames_output_directory.clone()).unwrap();
+        remove_dir_all(self.frames_output_directory);
+        create_dir(self.frames_output_directory).unwrap();
         create_dir_all(Path::new(&output_file).parent().unwrap()).unwrap();
 
         let progress_bar = indicatif::ProgressBar::new(self.total_frames() as u64).with_style(
@@ -682,7 +682,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let total_frames = self.total_frames();
         let aspect_ratio = canvas.grid_size.0 as f32 / canvas.grid_size.1 as f32;
         let resolution = self.resolution;
-        let frames_output_directory = self.frames_output_directory.clone();
+        let frames_output_directory = self.frames_output_directory;
         progress_bar.set_message("Rendering frames to SVG");
 
         for _ in 0..self.duration_ms() {

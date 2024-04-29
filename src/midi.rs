@@ -251,7 +251,7 @@ fn load_notes<'a>(source: &PathBuf) -> (Now, HashMap<String, Vec<Note>>) {
 
     let mut result = HashMap::<String, Vec<Note>>::new();
 
-    for (ms, notes) in stem_notes.iter().sorted_by_key(|(ms, _)| *ms) {
+    for (_ms, notes) in stem_notes.iter().sorted_by_key(|(ms, _)| *ms) {
         for (track_name, note) in notes {
             // println!(
             //     "{} {} {:?}",
