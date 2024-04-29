@@ -1,12 +1,12 @@
 use docopt::Docopt;
 use serde::Deserialize;
-use serde_json;
+
 use shapemaker::{Canvas, ColorMapping};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 
-const USAGE: &'static str = "
+const USAGE: &str = "
 ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 █░▄▄█░████░▄▄▀█▀▄▄▀█░▄▄█░▄▀▄░█░▄▄▀█░█▀█░▄▄█░▄▄▀█
 █▄▄▀█░▄▄░█░▀▀░█░▀▀░█░▄▄█░█▄█░█░▀▀░█░▄▀█░▄▄█░▀▀▄█
@@ -63,8 +63,8 @@ pub fn canvas_from_cli(args: &Args) -> Canvas {
     }
 
     let mut canvas = Canvas::new(vec![]);
-    canvas.colormap = load_colormap(&args);
-    set_canvas_settings_from_args(&args, &mut canvas);
+    canvas.colormap = load_colormap(args);
+    set_canvas_settings_from_args(args, &mut canvas);
     canvas
 }
 
@@ -98,7 +98,7 @@ fn set_canvas_settings_from_args(args: &Args, canvas: &mut Canvas) {
         let mut split = dimensions.split('x');
         let width = split.next().unwrap().parse::<usize>().unwrap();
         let height = split.next().unwrap().parse::<usize>().unwrap();
-        canvas.grid_size = (width, height);
+        canvas.set_grid_size(width, height);
     }
     if let Some(cell_size) = args.flag_cell_size {
         canvas.cell_size = cell_size;
@@ -142,7 +142,7 @@ fn load_colormap(args: &Args) -> ColorMapping {
     } else {
         let mut colormap: HashMap<String, String> = HashMap::new();
         for mapping in &args.flag_color {
-            if !mapping.contains(":") {
+            if !mapping.contains(':') {
                 println!("Invalid color mapping: {}", mapping);
                 std::process::exit(1);
             }

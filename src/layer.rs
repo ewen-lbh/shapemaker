@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::canvas::{Color, ColorMapping, Coordinates, Fill, Line, Object, ObjectSizes};
+use crate::canvas::{Color, ColorMapping, Coordinates, Fill, LineSegment, Object, ObjectSizes};
 
 #[derive(Debug, Clone, Default)]
 pub struct Layer {
@@ -16,6 +16,18 @@ impl Layer {
             name: name.to_string(),
             _render_cache: None,
         }
+    }
+
+    pub fn replace(&mut self, with: Layer) -> () {
+        self.objects = with.objects.clone();
+        self._render_cache = None;
+    }
+
+    pub fn paint_all_objects(&mut self, fill: Fill) {
+        for (_id, (_, maybe_fill)) in &mut self.objects {
+            *maybe_fill = Some(fill.clone());
+        }
+        self._render_cache = None;
     }
 
     pub fn add_object(&mut self, name: &str, object: Object, fill: Option<Fill>) {
@@ -108,7 +120,7 @@ impl Layer {
                     path = path.move_to(start.coords(cell_size));
                     for line in lines {
                         path = match line {
-                            Line::Line(end) | Line::InwardCurve(end) | Line::OutwardCurve(end) => {
+                            LineSegment::Straight(end) | LineSegment::InwardCurve(end) | LineSegment::OutwardCurve(end) => {
                                 path.line_to(end.coords(cell_size))
                             }
                         };

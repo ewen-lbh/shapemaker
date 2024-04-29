@@ -1,4 +1,4 @@
-use shapemaker::{Anchor, Canvas, CenterAnchor, Color, Fill, Object, Video};
+use shapemaker::{Canvas, Color, Fill, Layer, Object, Region, Video};
 mod cli;
 pub use cli::{canvas_from_cli, cli_args};
 
@@ -7,7 +7,7 @@ fn main() {
     let mut canvas = canvas_from_cli(&args);
 
     if args.cmd_image && !args.cmd_video {
-        canvas.layers.push(canvas.random_layer("main"));
+        canvas.layers.push(canvas.random_layer("root"));
         canvas.set_background(Color::White);
         let aspect_ratio = canvas.grid_size.0 as f32 / canvas.grid_size.1 as f32;
         match Canvas::save_as_png(
@@ -22,40 +22,34 @@ fn main() {
         return;
     }
 
-    Video::<(Anchor, CenterAnchor, Color, Color)>::new()
+    Video::<State>::new()
         .set_fps(args.flag_fps.unwrap_or(30))
         .set_initial_canvas(canvas)
         .init(&|canvas: _, context: _| {
-            context.extra = (
-                canvas.random_anchor(),
-                canvas.random_center_anchor(),
-                canvas.random_color(),
-                canvas.random_color(),
-            );
-            canvas.set_background(context.extra.3);
+            context.extra = State {
+                kick_region: Region::from_origin((3, 3)),
+                background: Color::Black,
+            };
+            canvas.set_background(context.extra.background);
         })
         .set_audio(args.flag_audio.unwrap().into())
         .sync_audio_with(&args.flag_sync_with.unwrap())
-        .on_stem(
-            "bass",
-            0.7,
-            &|canvas, _| {
-                let mut layer = canvas.random_layer("root");
-                for obj in layer.objects.iter_mut() {
-                    if let Some(_) = obj.1 .1 {
-                        obj.1 .1 = Some(Fill::Solid(Color::Black))
-                    }
-                }
-                canvas.layers[0] = layer;
-            },
-            &|_, _| {},
-        )
-        .on_stem(
-            "anchor kick",
-            0.7,
-            &|canvas, _| canvas.set_background(color_cycle(canvas.background.unwrap())),
-            &|_, _| {},
-        )
+        .on_note("bass", &|canvas, ctx| {
+            let mut new_layer = canvas.random_layer_within("bass", &ctx.extra.kick_region);
+            new_layer.paint_all_objects(Fill::Solid(Color::White));
+            canvas.replace_or_create_layer("bass", new_layer);
+        })
+        .on_note("anchor kick", &|canvas, ctx| {
+            ctx.extra.kick_region = region_cycle(&canvas.world_region, &ctx.extra.kick_region)
+        })
+        .on_note("powerful clap hit, clap", &|canvas, ctx| {
+            let mut new_layer = canvas.random_layer_within(
+                "claps",
+                &region_cycle(&canvas.world_region, &ctx.extra.kick_region),
+            );
+            new_layer.paint_all_objects(Fill::Solid(Color::Red));
+            canvas.replace_or_create_layer("claps", new_layer)
+        })
         // .on_stem(
         //     "bass",
         //     0.7,
@@ -77,7 +71,7 @@ fn main() {
             "clap",
             0.7,
             &|canvas, _| {
-                let polygon = canvas.random_polygon();
+                let polygon = canvas.random_polygon(&canvas.world_region);
                 let fill = Some(Fill::Solid(canvas.random_color()));
                 canvas.root().add_object("clap", polygon, fill);
             },
@@ -101,6 +95,12 @@ fn main() {
         .unwrap();
 }
 
+#[derive(Default)]
+struct State {
+    kick_region: Region,
+    background: Color,
+}
+
 fn color_cycle(current_color: Color) -> Color {
     match current_color {
         Color::Blue => Color::Cyan,
@@ -114,4 +114,22 @@ fn color_cycle(current_color: Color) -> Color {
         Color::White => Color::Blue,
         _ => unreachable!(),
     }
+}
+
+fn region_cycle(world: &Region, current: &Region) -> Region {
+    let size = (current.width(), current.height());
+    let mut new_region = current.clone();
+    // Move along x axis if possible
+    if current.end.0 + size.0 <= world.end.0 {
+        new_region.translate(size.0 as i32, 0)
+    }
+    // Else go to x=0 and move along y axis
+    else if current.end.1 + size.1 <= world.end.1 {
+        new_region = Region::new(0, current.end.1, size.0, current.end.1 + size.1)
+    }
+    // Else go to origin
+    else {
+        new_region = Region::from_origin(size)
+    }
+    new_region
 }

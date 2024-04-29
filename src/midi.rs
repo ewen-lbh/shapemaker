@@ -19,7 +19,7 @@ impl Averageable for Vec<f32> {
 }
 
 fn is_kick_channel(name: &str) -> bool {
-    return name.contains("kick");
+    name.contains("kick")
 }
 
 impl Syncable for MidiSynchronizer {

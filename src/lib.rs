@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time;
 
-const PROGRESS_BARS_STYLE: &'static str =
+const PROGRESS_BARS_STYLE: &str =
     "{spinner:.cyan} {percent:03.bold.cyan}% {msg:<30} [{bar:100.bold.blue/dim.blue}] {eta:.cyan}";
 
 pub type RenderFunction<C> = dyn Fn(&mut Canvas, &mut Context<C>);
@@ -128,7 +128,7 @@ impl<'a, C> Context<'a, C> {
         }
     }
 
-    pub fn dump_stems(&self, to: PathBuf) -> () {
+    pub fn dump_stems(&self, to: PathBuf) {
         std::fs::create_dir_all(&to);
         for (name, stem) in self.syncdata.stems.iter() {
             fs::write(to.join(name), format!("{:?}", stem));
@@ -226,7 +226,7 @@ impl SpinState {
 
         Self {
             spinner: spinner.clone(),
-            finished: finished,
+            finished,
             thread: spinner_thread,
         }
     }
@@ -234,6 +234,12 @@ impl SpinState {
         *self.finished.lock().unwrap() = true;
         self.thread.join().unwrap();
         println!("{}", message);
+    }
+}
+
+impl<AdditionalContext: Default> Default for Video<AdditionalContext> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -433,13 +439,13 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let mut hooks = self.hooks;
         hooks.push(Hook {
             when: Box::new(move |_, ctx, _, _| {
-                for stem_name in stems.split(",") {
+                for stem_name in stems.split(',').map(|s| s.trim()) {
                     let stem = ctx.stem(stem_name);
                     if stem.notes.iter().any(|note| note.is_on()) {
                         return true;
                     }
                 }
-                return false;
+                false
             }),
             render_function: Box::new(render_function),
         });
@@ -455,13 +461,13 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let mut hooks = self.hooks;
         hooks.push(Hook {
             when: Box::new(move |_, ctx, _, _| {
-                for stem_name in stems.split(",") {
+                for stem_name in stems.split(',') {
                     let stem = ctx.stem(stem_name);
                     if stem.notes.iter().any(|note| note.is_off()) {
                         return true;
                     }
                 }
-                return false;
+                false
             }),
             render_function: Box::new(render_function),
         });
@@ -484,7 +490,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         hooks.push(Hook {
             when: Box::new(move |_, ctx, _, _| {
                 stems
-                    .split(",")
+                    .split(',')
                     .any(|stem_name| ctx.stem(stem_name).notes.iter().any(|note| note.is_on()))
             }),
             render_function: Box::new(move |canvas, ctx| {
@@ -494,7 +500,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         });
         hooks.push(Hook {
             when: Box::new(move |_, ctx, _, _| {
-                stems.split(",").any(|stem_name| {
+                stems.split(',').any(|stem_name| {
                     ctx.stem(stem_name).amplitude_relative() < cutoff_amplitude
                         || ctx.stem(stem_name).notes.iter().any(|note| note.is_off())
                 })
@@ -686,8 +692,8 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         progress_bar.set_message("Rendering frames to SVG");
 
         for _ in 0..self.duration_ms() {
-            context.ms += 1 as usize;
-            context.timestamp = format!("{}", milliseconds_to_timestamp(context.ms));
+            context.ms += 1_usize;
+            context.timestamp = milliseconds_to_timestamp(context.ms).to_string();
             context.beat_fractional = (context.bpm * context.ms) as f32 / (1000.0 * 60.0);
             context.beat = context.beat_fractional as usize;
             context.frame = ((self.fps * context.ms) as f64 / 1000.0) as usize;
@@ -700,9 +706,9 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 ));
             }
 
-            if context.marker().starts_with(":") {
+            if context.marker().starts_with(':') {
                 let marker_text = context.marker();
-                let commandline = marker_text.trim_start_matches(":").to_string();
+                let commandline = marker_text.trim_start_matches(':').to_string();
 
                 for command in &self.commands {
                     if commandline.starts_with(&command.name) {
