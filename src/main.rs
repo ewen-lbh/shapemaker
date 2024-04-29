@@ -27,10 +27,9 @@ fn main() {
         .set_initial_canvas(canvas)
         .init(&|canvas: _, context: _| {
             context.extra = State {
-                kick_region: Region::from_origin((3, 3)),
-                background: Color::Black,
+                kick_region: Region::new(2, 2, 4, 4),
             };
-            canvas.set_background(context.extra.background);
+            canvas.set_background(Color::Black);
         })
         .set_audio(args.flag_audio.unwrap().into())
         .sync_audio_with(&args.flag_sync_with.unwrap())
@@ -40,9 +39,14 @@ fn main() {
             canvas.replace_or_create_layer("bass", new_layer);
         })
         .on_note("anchor kick", &|canvas, ctx| {
-            ctx.extra.kick_region = region_cycle(&canvas.world_region, &ctx.extra.kick_region)
+            let new_kick_region = region_cycle(&canvas.world_region, &ctx.extra.kick_region);
+
+            let (dx, dy) = new_kick_region - ctx.extra.kick_region;
+            canvas.layer("bass").unwrap().move_all_objects(dx, dy);
+
+            ctx.extra.kick_region = new_kick_region;
         })
-        .on_note("powerful clap hit, clap", &|canvas, ctx| {
+        .on_note("powerful clap hit, clap, perclap", &|canvas, ctx| {
             let mut new_layer = canvas.random_layer_within(
                 "claps",
                 &region_cycle(&canvas.world_region, &ctx.extra.kick_region),
@@ -50,33 +54,6 @@ fn main() {
             new_layer.paint_all_objects(Fill::Solid(Color::Red));
             canvas.replace_or_create_layer("claps", new_layer)
         })
-        // .on_stem(
-        //     "bass",
-        //     0.7,
-        //     &|canvas, context| {
-        //         println!(
-        //             "anchor kick at {}: amplitude_relative is {}",
-        //             context.timestamp,
-        //             context.stem("anchor kick").amplitude_relative()
-        //         );
-        //         canvas.root().add_object(
-        //             "kick",
-        //             Object::BigCircle(context.extra.1),
-        //             Some(Fill::Solid(Color::Cyan)),
-        //         );
-        //     },
-        //     &|canvas, _| canvas.remove_object("kick"),
-        // )
-        .on_stem(
-            "clap",
-            0.7,
-            &|canvas, _| {
-                let polygon = canvas.random_polygon(&canvas.world_region);
-                let fill = Some(Fill::Solid(canvas.random_color()));
-                canvas.root().add_object("clap", polygon, fill);
-            },
-            &|_, _| {},
-        )
         .on("start credits", &|canvas, _| {
             canvas.root().add_object(
                 "credits text",
@@ -98,7 +75,6 @@ fn main() {
 #[derive(Default)]
 struct State {
     kick_region: Region,
-    background: Color,
 }
 
 fn color_cycle(current_color: Color) -> Color {
@@ -125,7 +101,7 @@ fn region_cycle(world: &Region, current: &Region) -> Region {
     }
     // Else go to x=0 and move along y axis
     else if current.end.1 + size.1 <= world.end.1 {
-        new_region = Region::new(0, current.end.1, size.0, current.end.1 + size.1)
+        new_region = Region::new(2, current.end.1, size.0 + 2, current.end.1 + size.1)
     }
     // Else go to origin
     else {

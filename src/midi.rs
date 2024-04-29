@@ -47,17 +47,17 @@ impl Syncable for MidiSynchronizer {
                             velocity: note.vel,
                         });
 
-                    if is_kick_channel(name) {
-                        // kicks might not have a note off event, so we added one manually after 100ms
-                        notes_per_ms
-                            .entry((note.ms + 100) as usize)
-                            .or_default()
-                            .push(audio::Note {
-                                pitch: note.key,
-                                tick: note.tick,
-                                velocity: 0,
-                            });
-                    }
+                    // if is_kick_channel(name) {
+                    //     // kicks might not have a note off event, so we added one manually after 100ms
+                    //     notes_per_ms
+                    //         .entry((note.ms + 100) as usize)
+                    //         .or_default()
+                    //         .push(audio::Note {
+                    //             pitch: note.key,
+                    //             tick: note.tick,
+                    //             velocity: 0,
+                    //         });
+                    // }
                 }
 
                 let duration_ms = notes_per_ms.keys().max().unwrap_or(&0);

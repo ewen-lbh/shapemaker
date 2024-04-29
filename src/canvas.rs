@@ -1,20 +1,38 @@
 use std::{
     collections::HashMap,
-    fs::File,
-    io::{BufReader, Write},
+    io::Write,
     ops::{Range, RangeInclusive},
 };
 
 use chrono::DateTime;
 use rand::Rng;
-use serde::Deserialize;
 
-use crate::layer::Layer;
+use crate::{layer::Layer, Color, ColorMapping};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Copy)]
 pub struct Region {
     pub start: (usize, usize),
     pub end: (usize, usize),
+}
+
+impl std::ops::Sub for Region {
+    type Output = (i32, i32);
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        (
+            (self.start.0 as i32 - rhs.start.0 as i32),
+            (self.start.1 as i32 - rhs.start.1 as i32),
+        )
+    }
+}
+
+#[test]
+fn test_sub_and_transate_coherence() {
+    let a = Region::from_origin((3, 3));
+    let mut b = a.clone();
+    b.translate(2, 3);
+
+    assert_eq!(b - a, (2, 3));
 }
 
 impl Region {
@@ -518,11 +536,56 @@ pub enum Object {
     RawSVG(Box<dyn svg::Node>),
 }
 
+impl Object {
+    pub fn translate(&mut self, dx: i32, dy: i32) {
+        match self {
+            Object::Polygon(start, lines) => {
+                start.translate(dx, dy);
+                for line in lines {
+                    match line {
+                        LineSegment::InwardCurve(anchor)
+                        | LineSegment::OutwardCurve(anchor)
+                        | LineSegment::Straight(anchor) => anchor.translate(dx, dy),
+                    }
+                }
+            }
+            Object::Line(start, end)
+            | Object::CurveInward(start, end)
+            | Object::CurveOutward(start, end)
+            | Object::Rectangle(start, end) => {
+                start.translate(dx, dy);
+                end.translate(dx, dy);
+            }
+            Object::Text(anchor, _) | Object::Dot(anchor) | Object::SmallCircle(anchor) => {
+                anchor.translate(dx, dy)
+            }
+            Object::BigCircle(center) => center.translate(dx, dy),
+            Object::RawSVG(_) => {
+                unimplemented!()
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Anchor(pub i32, pub i32);
 
+impl Anchor {
+    pub fn translate(&mut self, dx: i32, dy: i32) {
+        self.0 += dx;
+        self.1 += dy;
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct CenterAnchor(pub i32, pub i32);
+
+impl CenterAnchor {
+    pub fn translate(&mut self, dx: i32, dy: i32) {
+        self.0 += dx;
+        self.1 += dy;
+    }
+}
 
 pub trait Coordinates {
     fn coords(&self, cell_size: usize) -> (f32, f32);
@@ -576,99 +639,4 @@ pub enum Fill {
     Translucent(Color, f32),
     Hatched,
     Dotted,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Color {
-    Black,
-    White,
-    Red,
-    Green,
-    Blue,
-    Yellow,
-    Orange,
-    Purple,
-    Brown,
-    Cyan,
-    Pink,
-    Gray,
-}
-
-impl Default for Color {
-    fn default() -> Self {
-        Self::Black
-    }
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct ColorMapping {
-    pub black: String,
-    pub white: String,
-    pub red: String,
-    pub green: String,
-    pub blue: String,
-    pub yellow: String,
-    pub orange: String,
-    pub purple: String,
-    pub brown: String,
-    pub cyan: String,
-    pub pink: String,
-    pub gray: String,
-}
-
-impl ColorMapping {
-    pub fn default() -> Self {
-        ColorMapping {
-            black: "black".to_string(),
-            white: "white".to_string(),
-            red: "red".to_string(),
-            green: "green".to_string(),
-            blue: "blue".to_string(),
-            yellow: "yellow".to_string(),
-            orange: "orange".to_string(),
-            purple: "purple".to_string(),
-            brown: "brown".to_string(),
-            pink: "pink".to_string(),
-            gray: "gray".to_string(),
-            cyan: "cyan".to_string(),
-        }
-    }
-    pub fn from_json_file(path: &str) -> ColorMapping {
-        let file = File::open(path).unwrap();
-        let reader = BufReader::new(file);
-        let json: serde_json::Value = serde_json::from_reader(reader).unwrap();
-        ColorMapping {
-            black: json["black"].as_str().unwrap().to_string(),
-            white: json["white"].as_str().unwrap().to_string(),
-            red: json["red"].as_str().unwrap().to_string(),
-            green: json["green"].as_str().unwrap().to_string(),
-            blue: json["blue"].as_str().unwrap().to_string(),
-            yellow: json["yellow"].as_str().unwrap().to_string(),
-            orange: json["orange"].as_str().unwrap().to_string(),
-            purple: json["purple"].as_str().unwrap().to_string(),
-            brown: json["brown"].as_str().unwrap().to_string(),
-            cyan: json["cyan"].as_str().unwrap().to_string(),
-            pink: json["pink"].as_str().unwrap().to_string(),
-            gray: json["gray"].as_str().unwrap().to_string(),
-        }
-    }
-}
-
-impl Color {
-    pub fn to_string(self, mapping: &ColorMapping) -> String {
-        match self {
-            Color::Black => mapping.black.to_string(),
-            Color::White => mapping.white.to_string(),
-            Color::Red => mapping.red.to_string(),
-            Color::Green => mapping.green.to_string(),
-            Color::Blue => mapping.blue.to_string(),
-            Color::Yellow => mapping.yellow.to_string(),
-            Color::Orange => mapping.orange.to_string(),
-            Color::Purple => mapping.purple.to_string(),
-            Color::Brown => mapping.brown.to_string(),
-            Color::Cyan => mapping.cyan.to_string(),
-            Color::Pink => mapping.pink.to_string(),
-            Color::Gray => mapping.gray.to_string(),
-        }
-    }
 }

@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::canvas::{Color, ColorMapping, Coordinates, Fill, LineSegment, Object, ObjectSizes};
+use crate::{
+    canvas::{Coordinates, Fill, LineSegment, Object, ObjectSizes},
+    Color, ColorMapping,
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct Layer {
@@ -27,6 +30,13 @@ impl Layer {
         for (_id, (_, maybe_fill)) in &mut self.objects {
             *maybe_fill = Some(fill.clone());
         }
+        self._render_cache = None;
+    }
+
+    pub fn move_all_objects(&mut self, dx: i32, dy: i32) {
+        self.objects
+            .iter_mut()
+            .for_each(|(_, (obj, _))| obj.translate(dx, dy));
         self._render_cache = None;
     }
 
@@ -120,9 +130,9 @@ impl Layer {
                     path = path.move_to(start.coords(cell_size));
                     for line in lines {
                         path = match line {
-                            LineSegment::Straight(end) | LineSegment::InwardCurve(end) | LineSegment::OutwardCurve(end) => {
-                                path.line_to(end.coords(cell_size))
-                            }
+                            LineSegment::Straight(end)
+                            | LineSegment::InwardCurve(end)
+                            | LineSegment::OutwardCurve(end) => path.line_to(end.coords(cell_size)),
                         };
                     }
                     path = path.close();

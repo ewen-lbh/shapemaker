@@ -1,3 +1,5 @@
+mod color;
+pub use color::*;
 mod audio;
 pub use audio::*;
 mod sync;
@@ -13,7 +15,7 @@ use chrono::NaiveDateTime;
 use indicatif::{ProgressBar, ProgressStyle};
 pub use midi::MidiSynchronizer;
 use std::cmp::min;
-use std::fmt::{Formatter};
+use std::fmt::Formatter;
 use std::fs::{self, create_dir, create_dir_all, remove_dir_all};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -281,7 +283,14 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             .args(["-hide_banner", "-loglevel", "error"])
             .args(["-framerate", &self.fps.to_string()])
             // .args(["-pattern_type", "glob"]) // not available on Windows
-            .args(["-i", &format!("{}/%0{}d.png", self.frames_output_directory, self.total_frames().to_string().len())])
+            .args([
+                "-i",
+                &format!(
+                    "{}/%0{}d.png",
+                    self.frames_output_directory,
+                    self.total_frames().to_string().len()
+                ),
+            ])
             .args(["-i", self.audiofile.to_str().unwrap()])
             .args(["-t", &format!("{}", self.duration_ms() as f32 / 1000.0)])
             .args(["-vcodec", "png"])
@@ -439,13 +448,10 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let mut hooks = self.hooks;
         hooks.push(Hook {
             when: Box::new(move |_, ctx, _, _| {
-                for stem_name in stems.split(',').map(|s| s.trim()) {
-                    let stem = ctx.stem(stem_name);
-                    if stem.notes.iter().any(|note| note.is_on()) {
-                        return true;
-                    }
-                }
-                false
+                stems
+                    .split(',')
+                    .map(|n| ctx.stem(n.trim()))
+                    .any(|stem| stem.notes.iter().any(|note| note.is_on()))
             }),
             render_function: Box::new(render_function),
         });
@@ -461,13 +467,10 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let mut hooks = self.hooks;
         hooks.push(Hook {
             when: Box::new(move |_, ctx, _, _| {
-                for stem_name in stems.split(',') {
-                    let stem = ctx.stem(stem_name);
-                    if stem.notes.iter().any(|note| note.is_off()) {
-                        return true;
-                    }
-                }
-                false
+                stems
+                    .split(',')
+                    .map(|n| ctx.stem(n.trim()))
+                    .any(|stem| stem.notes.iter().any(|note| note.is_off()))
             }),
             render_function: Box::new(render_function),
         });
@@ -614,16 +617,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
     }
 
     pub fn render_to(&self, output_file: String, workers_count: usize) -> Result<&Self> {
-        self.render_composition(
-            output_file,
-            self.initial_canvas
-                .layers
-                .iter()
-                .map(|l| l.name.as_str())
-                .collect(),
-            true,
-            workers_count,
-        )
+        self.render_composition(output_file, vec!["*"], true, workers_count)
     }
 
     pub fn render_layers_in(

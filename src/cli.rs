@@ -5,6 +5,7 @@ use shapemaker::{Canvas, ColorMapping};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
+use std::path::PathBuf;
 
 const USAGE: &str = "
 ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
@@ -136,9 +137,17 @@ fn set_canvas_settings_from_args(args: &Args, canvas: &mut Canvas) {
 
 fn load_colormap(args: &Args) -> ColorMapping {
     if let Some(file) = &args.flag_colors {
-        let file = File::open(file).unwrap();
-        let reader = BufReader::new(file);
-        serde_json::from_reader(reader).unwrap()
+        match PathBuf::from(file)
+            .extension()
+            .map(|ext| ext.try_into().unwrap())
+        {
+            Some("css") => ColorMapping::from_css_file(file),
+            Some("json") => ColorMapping::from_json_file(file),
+            ext => panic!(
+                "Invalid colormap file format. Must be css or json, is {:?}.",
+                ext
+            ),
+        }
     } else {
         let mut colormap: HashMap<String, String> = HashMap::new();
         for mapping in &args.flag_color {
