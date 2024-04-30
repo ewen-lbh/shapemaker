@@ -1,10 +1,18 @@
 mod color;
+mod objects;
 pub use color::*;
+pub use objects::*;
+mod anchors;
+mod fill;
+pub use anchors::*;
+pub use fill::*;
+mod region;
+pub use region::*;
 mod audio;
 pub use audio::*;
 mod sync;
 use itertools::Itertools;
-use midly::write;
+
 use sync::SyncData;
 pub use sync::Syncable;
 mod layer;
@@ -24,7 +32,7 @@ use std::fs::{self, create_dir, create_dir_all, remove_dir_all};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
-use std::{iter, time};
+use std::time;
 
 const PROGRESS_BARS_STYLE: &str =
     "{spinner:.cyan} {percent:03.bold.cyan}% {msg:<30} [{bar:100.bold.blue/dim.blue}] {eta:.cyan}";
@@ -780,7 +788,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         composition: Vec<&str>,
         render_background: bool,
         workers_count: usize,
-        preview_only: bool,
+        _preview_only: bool,
     ) -> () {
         let mut frame_writer_threads = vec![];
         let mut frames_to_write: Vec<(String, usize, usize)> = vec![];
@@ -817,7 +825,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
 
         let chunk_size = (frames_to_write.len() as f32 / workers_count as f32).ceil() as usize;
         let frames_to_write = Arc::new(frames_to_write);
-        let frames_output_directory = self.frames_output_directory.clone();
+        let frames_output_directory = self.frames_output_directory;
         for i in 0..workers_count {
             let frames_to_write = Arc::clone(&frames_to_write);
             let progress_bar = progress_bar.clone();

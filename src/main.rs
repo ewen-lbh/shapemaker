@@ -1,7 +1,5 @@
-use std::f32::consts::E;
-
 use itertools::Itertools;
-use shapemaker::{Anchor, Canvas, CenterAnchor, Color, Fill, Layer, Object, Region, Video};
+use shapemaker::{Anchor, Canvas, Color, Fill, Layer, Object, Region, Video};
 mod cli;
 pub use cli::{canvas_from_cli, cli_args};
 

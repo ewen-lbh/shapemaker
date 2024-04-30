@@ -1,10 +1,10 @@
-use std::{collections::HashMap, fs, hash::Hash, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf};
 
 use handlebars::Handlebars;
 use itertools::Itertools;
 use serde_json::json;
 
-use crate::{Canvas, ColorMapping};
+use crate::Canvas;
 
 const FRAMES_BUFFER_SIZE: usize = 500;
 
@@ -17,7 +17,7 @@ pub fn render_template(
     let template = String::from_utf8_lossy(include_bytes!("../preview/index.html.hbs"));
     let engine_js_source = String::from_utf8_lossy(include_bytes!("../preview/engine.js"));
 
-    let mut hbs = Handlebars::new();
+    let hbs = Handlebars::new();
     hbs.render_template(
         &template,
         &json!({
