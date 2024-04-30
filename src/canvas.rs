@@ -15,6 +15,33 @@ pub struct Region {
     pub end: (usize, usize),
 }
 
+impl From<((usize, usize), (usize, usize))> for Region {
+    fn from(value: ((usize, usize), (usize, usize))) -> Self {
+        Region {
+            start: value.0,
+            end: value.1,
+        }
+    }
+}
+
+impl From<(&Anchor, &Anchor)> for Region {
+    fn from(value: (&Anchor, &Anchor)) -> Self {
+        Region {
+            start: (value.0 .0 as usize, value.0 .1 as usize),
+            end: (value.1 .0 as usize, value.1 .1 as usize),
+        }
+    }
+}
+
+impl From<(&CenterAnchor, &CenterAnchor)> for Region {
+    fn from(value: (&CenterAnchor, &CenterAnchor)) -> Self {
+        Region {
+            start: (value.0 .0 as usize, value.0 .1 as usize),
+            end: (value.1 .0 as usize, value.1 .1 as usize),
+        }
+    }
+}
+
 impl std::ops::Sub for Region {
     type Output = (i32, i32);
 
@@ -43,6 +70,14 @@ impl Region {
         };
         region.ensure_valid();
         region
+    }
+
+    pub fn max<'a>(&'a self, other: &'a Region) -> &'a Region {
+        if self.within(other) {
+            other
+        } else {
+            self
+        }
     }
 
     pub fn from_origin(end: (usize, usize)) -> Self {
@@ -270,8 +305,8 @@ impl Canvas {
         self.random_object_within(&self.world_region)
     }
 
-    pub fn replace_or_create_layer(&mut self, name: &'static str, layer: Layer) {
-        if let Some(existing_layer) = self.layer(name) {
+    pub fn replace_or_create_layer(&mut self, layer: Layer) {
+        if let Some(existing_layer) = self.layer(&layer.name) {
             existing_layer.replace(layer);
         } else {
             self.layers.push(layer);
@@ -590,6 +625,39 @@ impl Object {
                 anchor.translate(dx, dy)
             }
             Object::BigCircle(center) => center.translate(dx, dy),
+            Object::RawSVG(_) => {
+                unimplemented!()
+            }
+        }
+    }
+
+    pub fn translate_with(&mut self, delta: (i32, i32)) {
+        self.translate(delta.0, delta.1)
+    }
+
+    pub fn region(&self) -> Region {
+        match self {
+            Object::Polygon(start, lines) => {
+                let mut region: Region = (start, start).into();
+                for line in lines {
+                    match line {
+                        LineSegment::InwardCurve(anchor)
+                        | LineSegment::OutwardCurve(anchor)
+                        | LineSegment::Straight(anchor) => {
+                            region = *region.max(&(start, anchor).into())
+                        }
+                    }
+                }
+                region
+            }
+            Object::Line(start, end)
+            | Object::CurveInward(start, end)
+            | Object::CurveOutward(start, end)
+            | Object::Rectangle(start, end) => (start, end).into(),
+            Object::Text(anchor, _) | Object::Dot(anchor) | Object::SmallCircle(anchor) => {
+                (anchor, anchor).into()
+            }
+            Object::BigCircle(center) => (center, center).into(), // FIXME will be wrong lmao,
             Object::RawSVG(_) => {
                 unimplemented!()
             }

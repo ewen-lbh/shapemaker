@@ -35,7 +35,7 @@ pub type CommandAction<C> = dyn Fn(String, &mut Canvas, &mut Context<C>);
 /// Arguments: canvas, context, previous rendered beat, previous rendered frame
 pub type HookCondition<C> = dyn Fn(&Canvas, &Context<C>, usize, usize) -> bool;
 
-pub type LaterRenderFunction<C> = dyn Fn(&mut Canvas, &Context<C>);
+pub type LaterRenderFunction = dyn Fn(&mut Canvas);
 
 /// Arguments: canvas, context, previous rendered beat
 pub type LaterHookCondition<C> = dyn Fn(&Canvas, &Context<C>, usize) -> bool;
@@ -61,7 +61,7 @@ pub struct Hook<C> {
 
 pub struct LaterHook<C> {
     pub when: Box<LaterHookCondition<C>>,
-    pub render_function: Box<LaterRenderFunction<C>>,
+    pub render_function: Box<LaterRenderFunction>,
 }
 
 impl<C> std::fmt::Debug for Hook<C> {
@@ -162,7 +162,7 @@ impl<'a, C> Context<'a, C> {
         }
     }
 
-    pub fn later_frames(&mut self, delay: usize, render_function: &'static LaterRenderFunction<C>) {
+    pub fn later_frames(&mut self, delay: usize, render_function: &'static LaterRenderFunction) {
         let current_frame = self.frame;
 
         self.later_hooks.insert(
@@ -176,7 +176,7 @@ impl<'a, C> Context<'a, C> {
         );
     }
 
-    pub fn later_ms(&mut self, delay: usize, render_function: &'static LaterRenderFunction<C>) {
+    pub fn later_ms(&mut self, delay: usize, render_function: &'static LaterRenderFunction) {
         let current_ms = self.ms;
 
         self.later_hooks.insert(
@@ -188,7 +188,7 @@ impl<'a, C> Context<'a, C> {
         );
     }
 
-    pub fn later_beats(&mut self, delay: f32, render_function: &'static LaterRenderFunction<C>) {
+    pub fn later_beats(&mut self, delay: f32, render_function: &'static LaterRenderFunction) {
         let current_beat = self.beat;
 
         self.later_hooks.insert(
@@ -733,7 +733,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
 
             for (i, hook) in context.later_hooks.iter().enumerate() {
                 if (hook.when)(&canvas, &context, previous_rendered_beat) {
-                    (hook.render_function)(&mut canvas, &context);
+                    (hook.render_function)(&mut canvas);
                     later_hooks_to_delete.push(i);
                 }
             }

@@ -70,8 +70,9 @@ impl Layer {
         let mut layer_group = svg::node::element::Group::new()
             .set("class", "layer")
             .set("data-layer", self.name.clone());
-        for (_id, (object, maybe_fill)) in &self.objects {
+        for (id, (object, maybe_fill)) in &self.objects {
             let mut group = svg::node::element::Group::new();
+            group = group.set("data-object", id.clone());
             match object {
                 Object::RawSVG(svg) => {
                     // eprintln!("render: raw_svg [{}]", id);
@@ -306,6 +307,13 @@ impl Layer {
                                     // TODO
                                     Some(Fill::Solid(color)) => {
                                         format!("fill: {};", color.to_string(&colormap))
+                                    }
+                                    Some(Fill::Translucent(color, opacity)) => {
+                                        format!(
+                                            "fill: {}; opacity: {};",
+                                            color.to_string(&colormap),
+                                            opacity
+                                        )
                                     }
                                     _ => format!(
                                         "fill: none; stroke: {}; stroke-width: {}px;",
