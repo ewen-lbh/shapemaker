@@ -20,6 +20,7 @@ serde_json = "1.0.91"
 svg = "0.17.0"
 chrono-human-duration = "0.1.1"
 handlebars = "5.1.2"
+tiny_http = "0.12.0"
 
 [dev-dependencies]
 rust-analyzer = "0.0.1"

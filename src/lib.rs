@@ -274,7 +274,9 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
     }
 
     pub fn build_video(&self, render_to: &str) -> Result<(), String> {
-        let result = std::process::Command::new("ffmpeg")
+        let mut command = std::process::Command::new("ffmpeg");
+
+        command
             .args(["-hide_banner", "-loglevel", "error"])
             .args(["-framerate", &self.fps.to_string()])
             // .args(["-pattern_type", "glob"]) // not available on Windows
@@ -288,12 +290,14 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             ])
             .args(["-i", self.audiofile.to_str().unwrap()])
             .args(["-t", &format!("{}", self.duration_ms() as f32 / 1000.0)])
-            .args(["-vcodec", "png"])
+            .args(["-c:v", "libx264"])
+            .args(["-pix_fmt", "yuv420p"])
             .arg("-y")
-            .arg(render_to)
-            .output();
+            .arg(render_to);
 
-        match result {
+        println!("Running command: {:?}", command);
+
+        match command.output() {
             Err(e) => Err(format!("Failed to execute ffmpeg: {}", e)),
             Ok(r) => {
                 println!("{}", std::str::from_utf8(&r.stdout).unwrap());
@@ -616,33 +620,31 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             .unwrap()
     }
 
-    // rendered_svg_frames should map ms timestamps to SVG strings
-    pub fn output_preview(
-        &self,
-        canvas: &Canvas,
-        rendered_svg_frames: HashMap<usize, String>,
-        output_file: PathBuf,
-    ) -> Result<&Self> {
-        let contents =
-            preview::render_template(rendered_svg_frames, canvas, self.audiofile.clone());
-        fs::write(output_file, contents)?;
-        Ok(self)
+    pub fn preview_on(&self, port: usize) {
+        let mut rendered_frames: HashMap<usize, String> = HashMap::new();
+        let progress_bar = self.setup_progress_bar();
+
+        for (frame, _, ms) in self.render_frames(&progress_bar, vec!["*"], true) {
+            rendered_frames.insert(ms, frame);
+        }
+
+        progress_bar.finish_and_clear();
+
+        preview::output_preview(
+            &self.initial_canvas,
+            &rendered_frames,
+            port,
+            PathBuf::from(".").join("preview.html"),
+            self.audiofile.clone(),
+        );
+        preview::start_preview_server(port, rendered_frames);
     }
 
-    pub fn render_to(
-        &mut self,
-        output_file: String,
-        workers_count: usize,
-        preview_only: bool,
-    ) -> Result<&Self> {
-        self.render_composition(output_file, vec!["*"], true, workers_count, preview_only)
+    pub fn render_to(&self, output_file: String, workers_count: usize, preview_only: bool) -> () {
+        self.render_composition(output_file, vec!["*"], true, workers_count, preview_only);
     }
 
-    pub fn render_layers_in(
-        &self,
-        output_directory: String,
-        workers_count: usize,
-    ) -> Result<&Self> {
+    pub fn render_layers_in(&self, output_directory: String, workers_count: usize) -> () {
         for composition in self
             .initial_canvas
             .layers
@@ -655,9 +657,8 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 false,
                 workers_count,
                 false,
-            )?;
+            );
         }
-        Ok(self)
     }
 
     // Returns a triple of (SVG content, frame number, millisecond at frame)
@@ -757,6 +758,16 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         frames_to_write
     }
 
+    fn setup_progress_bar(&self) -> ProgressBar {
+        indicatif::ProgressBar::new(self.total_frames() as u64).with_style(
+            indicatif::ProgressStyle::with_template(
+                &(PROGRESS_BARS_STYLE.to_owned() + " ({pos:.bold} frames out of {len})"),
+            )
+            .unwrap()
+            .progress_chars("== "),
+        )
+    }
+
     pub fn render_composition(
         &self,
         output_file: String,
@@ -764,7 +775,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         render_background: bool,
         workers_count: usize,
         preview_only: bool,
-    ) -> Result<&Self> {
+    ) -> () {
         let mut frame_writer_threads = vec![];
         let mut frames_to_write: Vec<(String, usize, usize)> = vec![];
 
@@ -772,49 +783,29 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         create_dir(self.frames_output_directory).unwrap();
         create_dir_all(Path::new(&output_file).parent().unwrap()).unwrap();
 
-        let progress_bar = indicatif::ProgressBar::new(self.total_frames() as u64).with_style(
-            indicatif::ProgressStyle::with_template(
-                &(PROGRESS_BARS_STYLE.to_owned() + " ({pos:.bold} frames out of {len})"),
-            )
-            .unwrap()
-            .progress_chars("== "),
-        );
         let total_frames = self.total_frames();
         let aspect_ratio =
             self.initial_canvas.grid_size.0 as f32 / self.initial_canvas.grid_size.1 as f32;
         let resolution = self.resolution;
-        let frames_output_directory = self.frames_output_directory;
+
+        let progress_bar = self.setup_progress_bar();
         progress_bar.set_message("Rendering frames to SVG");
 
         for (frame, no, ms) in self.render_frames(&progress_bar, composition, render_background) {
-            std::fs::write(format!("{}/{}.svg", frames_output_directory, no), &frame)?;
+            std::fs::write(
+                format!("{}/{}.svg", self.frames_output_directory, no),
+                &frame,
+            );
             frames_to_write.push((frame, no, ms));
         }
 
-        self.output_preview(
-            &self.initial_canvas,
-            frames_to_write
-                .iter()
-                .map(|(f, _, ms)| (ms.clone(), f.clone()))
-                .collect(),
-            PathBuf::from(&output_file)
-                .parent()
-                .unwrap()
-                .join("preview.html"),
-        );
-
         progress_bar.println("Rendered frames to SVG");
-
-        if preview_only {
-            progress_bar.finish_and_clear();
-            return Ok(self);
-        }
-
         progress_bar.set_message("Rendering SVG frames to PNG");
         progress_bar.set_position(0);
 
         let chunk_size = (frames_to_write.len() as f32 / workers_count as f32).ceil() as usize;
         let frames_to_write = Arc::new(frames_to_write);
+        let frames_output_directory = self.frames_output_directory.clone();
         for i in 0..workers_count {
             let frames_to_write = Arc::clone(&frames_to_write);
             let progress_bar = progress_bar.clone();
@@ -852,6 +843,5 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             panic!("Failed to build video: {}", e);
         }
         spinner.end(&format!("Built video to {}", output_file));
-        Ok(self)
     }
 }

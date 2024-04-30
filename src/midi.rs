@@ -60,10 +60,10 @@ impl Syncable for MidiSynchronizer {
                     // }
                 }
 
-                let duration_ms = notes_per_ms.keys().max().unwrap_or(&0);
+                let duration_ms = notes_per_ms.keys().max().unwrap_or(&0).clone();
                 let mut amplitudes = Vec::<f32>::new();
                 let mut last_amplitude = 0.0;
-                for i in 0..*duration_ms {
+                for i in 0..duration_ms {
                     if let Some(notes) = notes_per_ms.get(&i) {
                         last_amplitude = notes
                             .iter()
@@ -79,7 +79,7 @@ impl Syncable for MidiSynchronizer {
                     Stem {
                         amplitude_max: notes.iter().map(|n| n.vel).max().unwrap_or(0) as f32,
                         amplitude_db: amplitudes,
-                        duration_ms: notes.iter().map(|n| n.tick).max().unwrap_or(0) as usize,
+                        duration_ms: duration_ms,
                         notes: notes_per_ms,
                         name: name.clone(),
                     },

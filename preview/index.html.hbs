@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shapemaker Preview</title>
     <script>
+        window.SERVER_ORIGIN = "{{ serverorigin }}";
+        window.FRAMES_BUFFER_SIZE = {{ framesbuffersize }};
         {{{ enginesource }}}
     </script>
     {{!-- <script src="preview/engine.js"></script> --}}

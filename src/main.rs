@@ -26,8 +26,7 @@ fn main() {
     video.duration_override = args.flag_duration.map(|seconds| seconds * 1000);
     video.fps = args.flag_fps.unwrap_or(30);
     video.audiofile = args.flag_audio.unwrap().into();
-
-    video
+    video = video
         .init(&|canvas: _, context: _| {
             context.extra = State {
                 bass_pattern_at: Region::from_origin_and_size((6, 3), (3, 3)),
@@ -83,13 +82,13 @@ fn main() {
         .command("remove", &|argumentsline, canvas, _| {
             let args = argumentsline.splitn(3, ' ').collect::<Vec<_>>();
             canvas.remove_object(args[0]);
-        })
-        .render_to(
-            args.arg_file,
-            args.flag_workers.unwrap_or(8),
-            args.flag_preview,
-        )
-        .unwrap();
+        });
+
+    if args.flag_preview {
+        video.preview_on(8888);
+    } else {
+        video.render_to(args.arg_file, args.flag_workers.unwrap_or(8), false);
+    }
 }
 
 fn update_stem_position(
