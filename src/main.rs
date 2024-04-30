@@ -48,6 +48,10 @@ fn main() {
             kicks.add_object("bottom left", circle_at(1, end_y), fill);
             kicks.add_object("bottom right", circle_at(end_x, end_y), fill);
             canvas.replace_or_create_layer(kicks);
+
+            let mut ch = Layer::new("ch");
+            ch.add_object("dot", Object::SmallCircle(Anchor(2, 1)), Some(Fill::Solid(Color::Gray)));
+            canvas.replace_or_create_layer(ch);
         })
         .sync_audio_with(&args.flag_sync_with.unwrap())
         .on_note("anchor kick", &|canvas, ctx| {
@@ -193,18 +197,18 @@ fn region_cycle_with_offset(world: &Region, current: Option<&Region>, offset: us
 fn hat_region_cycle(world: &Region, current: &Region) -> (i32, i32) {
     let (end_x, end_y) = {
         let (x, y) = world.end;
-        (x - 1, y - 1)
+        (x - 2, y - 2)
     };
 
     match current.start {
         // top row
-        (x, 0) if x <= end_x => (1, 0),
+        (x, 1) if x < end_x => (1, 0),
         // right column
-        (x, y) if x == end_x && y <= end_y => (0, 1),
+        (x, y) if x == end_x && y < end_y => (0, 1),
         // bottom row
-        (x, y) if y == end_y && x > 0 => (-1, 0),
+        (x, y) if y == end_y && x > 1 => (-1, 0),
         // left column
-        (0, y) if y > 0 => (0, -1),
+        (1, y) if y > 1 => (0, -1),
         _ => unreachable!(),
     }
 }
