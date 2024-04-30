@@ -52,6 +52,7 @@ pub struct Video<C> {
     pub audiofile: PathBuf,
     pub resolution: usize,
     pub duration_override: Option<usize>,
+    pub start_rendering_at: usize,
 }
 
 pub struct Hook<C> {
@@ -259,6 +260,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             syncdata: SyncData::default(),
             audiofile: PathBuf::new(),
             duration_override: None,
+            start_rendering_at: 0,
         }
     }
 
@@ -279,14 +281,18 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         command
             .args(["-hide_banner", "-loglevel", "error"])
             .args(["-framerate", &self.fps.to_string()])
-            // .args(["-pattern_type", "glob"]) // not available on Windows
+            .args(["-pattern_type", "glob"]) // not available on Windows
             .args([
                 "-i",
                 &format!(
-                    "{}/%0{}d.png",
+                    "{}/*.png",
                     self.frames_output_directory,
-                    self.total_frames().to_string().len()
+                    // self.total_frames().to_string().len()
                 ),
+            ])
+            .args([
+                "-ss",
+                &format!("{}", self.start_rendering_at as f32 / 1000.0),
             ])
             .args(["-i", self.audiofile.to_str().unwrap()])
             .args(["-t", &format!("{}", self.duration_ms() as f32 / 1000.0)])
@@ -604,7 +610,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
     }
 
     pub fn total_frames(&self) -> usize {
-        self.fps * self.duration_ms() / 1000
+        self.fps * (self.duration_ms() + self.start_rendering_at) / 1000
     }
 
     pub fn duration_ms(&self) -> usize {
@@ -688,7 +694,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let mut previous_rendered_frame = 0;
         let mut frames_to_write: Vec<(String, usize, usize)> = vec![];
 
-        for _ in 0..self.duration_ms() {
+        for _ in 0..self.duration_ms() + self.start_rendering_at {
             context.ms += 1_usize;
             context.timestamp = milliseconds_to_timestamp(context.ms).to_string();
             context.beat_fractional = (context.bpm * context.ms) as f32 / (1000.0 * 60.0);
@@ -792,16 +798,22 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         progress_bar.set_message("Rendering frames to SVG");
 
         for (frame, no, ms) in self.render_frames(&progress_bar, composition, render_background) {
+            frames_to_write.push((frame, no, ms));
+        }
+
+        progress_bar.println(format!("Rendered {} frames to SVG", frames_to_write.len()));
+        progress_bar.set_message("Rendering SVG frames to PNG");
+        progress_bar.set_position(0);
+
+        frames_to_write.retain(|(_, _, ms)| *ms >= self.start_rendering_at);
+        progress_bar.set_length(frames_to_write.len() as u64);
+
+        for (frame, no, _) in &frames_to_write {
             std::fs::write(
                 format!("{}/{}.svg", self.frames_output_directory, no),
                 &frame,
             );
-            frames_to_write.push((frame, no, ms));
         }
-
-        progress_bar.println("Rendered frames to SVG");
-        progress_bar.set_message("Rendering SVG frames to PNG");
-        progress_bar.set_position(0);
 
         let chunk_size = (frames_to_write.len() as f32 / workers_count as f32).ceil() as usize;
         let frames_to_write = Arc::new(frames_to_write);

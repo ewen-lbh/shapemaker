@@ -37,6 +37,7 @@ Options:
     --fps <fps>                    Frames per second [default: 30]
     --audio <file>                 Audio file to use for the video
     --duration <seconds>           Number of seconds to render. If not set, the video will be as long as the audio file.
+    --start <seconds>              Start the video at this time in seconds. [default: 0]
     --preview                      Only create preview.html, not the output video. Preview.html will be created in the same directory as <file>, but <file> will not be created.
     --sync-with <directory>        Directory containing the audio files to sync to.
                                    The directory must contain:
@@ -92,6 +93,7 @@ pub struct Args {
     pub flag_resolution: Option<usize>,
     pub flag_workers: Option<usize>,
     pub flag_duration: Option<usize>,
+    pub flag_start: Option<usize>,
     pub flag_preview: bool,
 }
 
@@ -109,7 +111,7 @@ fn set_canvas_settings_from_args(args: &Args, canvas: &mut Canvas) {
         canvas.canvas_outter_padding = canvas_padding;
     }
     if let Some(line_width) = args.flag_line_width {
-        canvas.object_sizes.line_width = line_width;
+        canvas.object_sizes.default_line_width = line_width;
     }
     if let Some(small_circle_radius) = args.flag_small_circle_radius {
         canvas.object_sizes.small_circle_radius = small_circle_radius;
@@ -120,7 +122,6 @@ fn set_canvas_settings_from_args(args: &Args, canvas: &mut Canvas) {
     if let Some(empty_shape_stroke) = args.flag_empty_shape_stroke {
         canvas.object_sizes.empty_shape_stroke_width = empty_shape_stroke;
     }
-    canvas.render_grid = args.flag_render_grid;
     if let Some(objects_count) = &args.flag_objects_count {
         let mut split = objects_count.split("..");
         let min = split.next().unwrap().parse::<usize>().unwrap();

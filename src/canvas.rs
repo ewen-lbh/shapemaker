@@ -1,4 +1,6 @@
+use core::panic;
 use std::{
+    cmp,
     collections::HashMap,
     io::Write,
     ops::{Range, RangeInclusive},
@@ -80,6 +82,13 @@ impl Region {
         }
     }
 
+    pub fn random_coordinates_within(&self) -> (i32, i32) {
+        (
+            rand::thread_rng().gen_range(self.start.0..self.end.0) as i32,
+            rand::thread_rng().gen_range(self.start.1..self.end.1) as i32,
+        )
+    }
+
     pub fn from_origin(end: (usize, usize)) -> Self {
         Self::new(0, 0, end.0, end.1)
     }
@@ -130,6 +139,23 @@ impl Region {
             ),
         }
         .ensure_valid()
+    }
+
+    /// adds dx and dy to the end of the region (dx and dy are _not_ multiplicative but **additive** factors)
+    pub fn enlarged(&self, dx: i32, dy: i32) -> Self {
+        Self {
+            start: self.start,
+            end: (
+                (self.end.0 as i32 + dx) as usize,
+                (self.end.1 as i32 + dy) as usize,
+            ),
+        }
+        .ensure_valid()
+    }
+
+    /// resized is like enlarged, but transforms from the center, by first translating the region by (-dx, -dy)
+    pub fn resized(&self, dx: i32, dy: i32) -> Self {
+        self.translated(-dx, -dy).enlarged(dx, dy)
     }
 
     pub fn x_range(&self) -> Range<usize> {
@@ -197,7 +223,6 @@ pub struct Canvas {
     pub polygon_vertices_range: Range<usize>,
     pub canvas_outter_padding: usize,
     pub object_sizes: ObjectSizes,
-    pub render_grid: bool,
     pub colormap: ColorMapping,
     /// The layers are in order of top to bottom: the first layer will be rendered on top of the second, etc.
     pub layers: Vec<Layer>,
@@ -219,6 +244,7 @@ impl Canvas {
             layers: layer_names
                 .iter()
                 .map(|name| Layer {
+                    object_sizes: ObjectSizes::default(),
                     objects: HashMap::new(),
                     name: name.to_string(),
                     _render_cache: None,
@@ -236,12 +262,47 @@ impl Canvas {
         };
     }
 
-    pub fn layer(&mut self, name: &str) -> Option<&mut Layer> {
+    pub fn layer_safe(&mut self, name: &str) -> Option<&mut Layer> {
         self.layers.iter_mut().find(|layer| layer.name == name)
     }
 
+    pub fn layer(&mut self, name: &str) -> &mut Layer {
+        self.layer_safe(name).unwrap()
+    }
+
+    pub fn ensure_layer_exists(&self, name: &str) {
+        self.layers
+            .iter()
+            .find(|layer| layer.name == name)
+            .or_else(|| panic!("Layer {} does not exist", name));
+    }
+
+    /// puts this layer on top, and the others below, without changing their order
+    pub fn put_layer_on_top(&mut self, name: &str) {
+        self.ensure_layer_exists(name);
+        self.layers.sort_by(|a, _| {
+            if a.name == name {
+                cmp::Ordering::Greater
+            } else {
+                cmp::Ordering::Less
+            }
+        })
+    }
+
+    /// puts this layer on bottom, and the others above, without changing their order
+    pub fn put_layer_on_bottom(&mut self, name: &str) {
+        self.ensure_layer_exists(name);
+        self.layers.sort_by(|a, _| {
+            if a.name == name {
+                cmp::Ordering::Less
+            } else {
+                cmp::Ordering::Greater
+            }
+        })
+    }
+
     pub fn root(&mut self) -> &mut Layer {
-        self.layer("root")
+        self.layer_safe("root")
             .expect("Layer 'root' should always exist in a canvas")
     }
 
@@ -252,7 +313,7 @@ impl Canvas {
         object: Object,
         fill: Option<Fill>,
     ) -> Result<(), String> {
-        match self.layer(layer) {
+        match self.layer_safe(layer) {
             None => Err(format!("Layer {} does not exist", layer)),
             Some(layer) => {
                 layer.objects.insert(name.to_string(), (object, fill));
@@ -282,14 +343,7 @@ impl Canvas {
             objects_count_range: 3..7,
             polygon_vertices_range: 2..7,
             canvas_outter_padding: 10,
-            object_sizes: ObjectSizes {
-                line_width: 2.0,
-                empty_shape_stroke_width: 0.5,
-                small_circle_radius: 5.0,
-                dot_radius: 2.0,
-                font_size: 20.0,
-            },
-            render_grid: false,
+            object_sizes: ObjectSizes::default(),
             colormap: ColorMapping::default(),
             layers: vec![],
             world_region: Region::new(0, 0, 3, 3),
@@ -306,7 +360,7 @@ impl Canvas {
     }
 
     pub fn replace_or_create_layer(&mut self, layer: Layer) {
-        if let Some(existing_layer) = self.layer(&layer.name) {
+        if let Some(existing_layer) = self.layer_safe(&layer.name) {
             existing_layer.replace(layer);
         } else {
             self.layers.push(layer);
@@ -331,7 +385,33 @@ impl Canvas {
             );
         }
         Layer {
+            object_sizes: self.object_sizes.clone(),
             name: name.to_string(),
+            objects,
+            _render_cache: None,
+        }
+    }
+
+    pub fn random_linelikes_within(&self, layer_name: &'static str, region: &Region) -> Layer {
+        let mut objects: HashMap<String, (Object, Option<Fill>)> = HashMap::new();
+        let number_of_objects = rand::thread_rng().gen_range(self.objects_count_range.clone());
+        for i in 0..number_of_objects {
+            let object = self.random_linelike_within(region);
+            objects.insert(
+                format!("{}#{}", layer_name, i),
+                (
+                    object,
+                    if rand::thread_rng().gen_bool(0.5) {
+                        Some(self.random_fill())
+                    } else {
+                        None
+                    },
+                ),
+            );
+        }
+        Layer {
+            object_sizes: self.object_sizes.clone(),
+            name: layer_name.to_owned(),
             objects,
             _render_cache: None,
         }
@@ -344,9 +424,43 @@ impl Canvas {
             2 => Object::BigCircle(self.random_center_anchor(region)),
             3 => Object::SmallCircle(start),
             4 => Object::Dot(start),
-            5 => Object::CurveInward(start, self.random_end_anchor(start, region)),
-            6 => Object::CurveOutward(start, self.random_end_anchor(start, region)),
-            7 => Object::Line(self.random_anchor(region), self.random_anchor(region)),
+            5 => Object::CurveInward(
+                start,
+                self.random_end_anchor(start, region),
+                self.object_sizes.default_line_width,
+            ),
+            6 => Object::CurveOutward(
+                start,
+                self.random_end_anchor(start, region),
+                self.object_sizes.default_line_width,
+            ),
+            7 => Object::Line(
+                self.random_anchor(region),
+                self.random_anchor(region),
+                self.object_sizes.default_line_width,
+            ),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn random_linelike_within(&self, region: &Region) -> Object {
+        let start = self.random_anchor(region);
+        match rand::thread_rng().gen_range(1..=3) {
+            1 => Object::CurveInward(
+                start,
+                self.random_end_anchor(start, region),
+                self.object_sizes.default_line_width,
+            ),
+            2 => Object::CurveOutward(
+                start,
+                self.random_end_anchor(start, region),
+                self.object_sizes.default_line_width,
+            ),
+            3 => Object::Line(
+                self.random_anchor(region),
+                self.random_anchor(region),
+                self.object_sizes.default_line_width,
+            ),
             _ => unreachable!(),
         }
     }
@@ -526,34 +640,9 @@ impl Canvas {
             .filter(|layer| layers.contains(&"*") || layers.contains(&layer.name.as_str()))
             .rev()
         {
-            svg = svg.add(layer.render(self.colormap.clone(), self.cell_size, self.object_sizes));
+            svg = svg.add(layer.render(self.colormap.clone(), self.cell_size, layer.object_sizes));
         }
-        // render a dotted grid
-        if self.render_grid {
-            for i in 0..self.grid_size.0 as i32 {
-                for j in 0..self.grid_size.1 as i32 {
-                    let (x, y) = Anchor(i, j).coords(self.cell_size);
-                    svg = svg.add(
-                        svg::node::element::Circle::new()
-                            .set("cx", x)
-                            .set("cy", y)
-                            .set("r", self.object_sizes.line_width / 4.0)
-                            .set("fill", "#000"),
-                    );
 
-                    // if i < canvas.grid_size.0 as i32 - 1 && j < canvas.grid_size.1 as i32 - 1 {
-                    //     let (x, y) = CenterAnchor(i, j).coords(&canvas);
-                    //     svg = svg.add(
-                    //         svg::node::element::Circle::new()
-                    //             .set("cx", x)
-                    //             .set("cy", y)
-                    //             .set("r", canvas.line_width / 4.0)
-                    //             .set("fill", "#fff"),
-                    //     );
-                    // }
-                }
-            }
-        }
         svg.set(
             "viewBox",
             format!(
@@ -583,20 +672,30 @@ pub struct ObjectSizes {
     pub empty_shape_stroke_width: f32,
     pub small_circle_radius: f32,
     pub dot_radius: f32,
-    pub line_width: f32,
-    pub font_size: f32,
+    pub default_line_width: f32,
+}
+
+impl Default for ObjectSizes {
+    fn default() -> Self {
+        Self {
+            empty_shape_stroke_width: 0.5,
+            small_circle_radius: 5.0,
+            dot_radius: 2.0,
+            default_line_width: 2.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub enum Object {
     Polygon(Anchor, Vec<LineSegment>),
-    Line(Anchor, Anchor),
-    CurveOutward(Anchor, Anchor),
-    CurveInward(Anchor, Anchor),
+    Line(Anchor, Anchor, f32),
+    CurveOutward(Anchor, Anchor, f32),
+    CurveInward(Anchor, Anchor, f32),
     SmallCircle(Anchor),
     Dot(Anchor),
     BigCircle(CenterAnchor),
-    Text(Anchor, String),
+    Text(Anchor, String, f32),
     Rectangle(Anchor, Anchor),
     RawSVG(Box<dyn svg::Node>),
 }
@@ -614,14 +713,14 @@ impl Object {
                     }
                 }
             }
-            Object::Line(start, end)
-            | Object::CurveInward(start, end)
-            | Object::CurveOutward(start, end)
+            Object::Line(start, end, _)
+            | Object::CurveInward(start, end, _)
+            | Object::CurveOutward(start, end, _)
             | Object::Rectangle(start, end) => {
                 start.translate(dx, dy);
                 end.translate(dx, dy);
             }
-            Object::Text(anchor, _) | Object::Dot(anchor) | Object::SmallCircle(anchor) => {
+            Object::Text(anchor, _, _) | Object::Dot(anchor) | Object::SmallCircle(anchor) => {
                 anchor.translate(dx, dy)
             }
             Object::BigCircle(center) => center.translate(dx, dy),
@@ -633,6 +732,17 @@ impl Object {
 
     pub fn translate_with(&mut self, delta: (i32, i32)) {
         self.translate(delta.0, delta.1)
+    }
+
+    pub fn teleport(&mut self, x: i32, y: i32) {
+        let (current_x, current_y) = self.region().start;
+        let delta_x = x - current_x as i32;
+        let delta_y = y - current_y as i32;
+        self.translate(delta_x, delta_y);
+    }
+
+    pub fn teleport_with(&mut self, position: (i32, i32)) {
+        self.teleport(position.0, position.1)
     }
 
     pub fn region(&self) -> Region {
@@ -650,11 +760,11 @@ impl Object {
                 }
                 region
             }
-            Object::Line(start, end)
-            | Object::CurveInward(start, end)
-            | Object::CurveOutward(start, end)
+            Object::Line(start, end, _)
+            | Object::CurveInward(start, end, _)
+            | Object::CurveOutward(start, end, _)
             | Object::Rectangle(start, end) => (start, end).into(),
-            Object::Text(anchor, _) | Object::Dot(anchor) | Object::SmallCircle(anchor) => {
+            Object::Text(anchor, _, _) | Object::Dot(anchor) | Object::SmallCircle(anchor) => {
                 (anchor, anchor).into()
             }
             Object::BigCircle(center) => (center, center).into(), // FIXME will be wrong lmao,
@@ -672,6 +782,12 @@ impl Anchor {
     pub fn translate(&mut self, dx: i32, dy: i32) {
         self.0 += dx;
         self.1 += dy;
+    }
+}
+
+impl From<(i32, i32)> for Anchor {
+    fn from(value: (i32, i32)) -> Self {
+        Anchor(value.0, value.1)
     }
 }
 

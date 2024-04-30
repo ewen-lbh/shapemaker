@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use chrono::format;
+
 use crate::{
     canvas::{Coordinates, Fill, LineSegment, Object, ObjectSizes},
     Color, ColorMapping,
@@ -7,6 +9,7 @@ use crate::{
 
 #[derive(Debug, Clone, Default)]
 pub struct Layer {
+    pub object_sizes: ObjectSizes,
     pub objects: HashMap<String, (Object, Option<Fill>)>,
     pub name: String,
     pub _render_cache: Option<svg::node::element::Group>,
@@ -15,10 +18,15 @@ pub struct Layer {
 impl Layer {
     pub fn new(name: &str) -> Self {
         Layer {
+            object_sizes: ObjectSizes::default(),
             objects: HashMap::new(),
             name: name.to_string(),
             _render_cache: None,
         }
+    }
+
+    pub fn object(&mut self, name: &str) -> &mut (Object, Option<Fill>) {
+        self.objects.get_mut(name).unwrap()
     }
 
     // Flush the render cache.
@@ -28,31 +36,36 @@ impl Layer {
 
     pub fn replace(&mut self, with: Layer) -> () {
         self.objects = with.objects.clone();
-        self._render_cache = None;
+        self.flush();
     }
 
     pub fn paint_all_objects(&mut self, fill: Fill) {
         for (_id, (_, maybe_fill)) in &mut self.objects {
             *maybe_fill = Some(fill.clone());
         }
-        self._render_cache = None;
+        self.flush();
     }
 
     pub fn move_all_objects(&mut self, dx: i32, dy: i32) {
         self.objects
             .iter_mut()
             .for_each(|(_, (obj, _))| obj.translate(dx, dy));
-        self._render_cache = None;
+        self.flush();
     }
 
     pub fn add_object(&mut self, name: &str, object: Object, fill: Option<Fill>) {
         self.objects.insert(name.to_string(), (object, fill));
-        self._render_cache = None;
+        self.flush();
     }
 
     pub fn remove_object(&mut self, name: &str) {
         self.objects.remove(name);
-        self._render_cache = None;
+        self.flush();
+    }
+
+    pub fn replace_object(&mut self, name: &str, object: Object, fill: Option<Fill>) {
+        self.remove_object(name);
+        self.add_object(name, object, fill);
     }
 
     /// Render the layer to a SVG group element.
@@ -78,12 +91,12 @@ impl Layer {
                     // eprintln!("render: raw_svg [{}]", id);
                     group = group.add(svg.clone());
                 }
-                Object::Text(position, content) => {
+                Object::Text(position, content, font_size) => {
                     group = group.add(
                         svg::node::element::Text::new(content.clone())
                             .set("x", position.coords(cell_size).0)
                             .set("y", position.coords(cell_size).1)
-                            .set("font-size", format!("{}pt", object_sizes.font_size))
+                            .set("font-size", format!("{}pt", font_size))
                             .set("font-family", "sans-serif")
                             .set("text-anchor", "middle")
                             .set("dominant-baseline", "middle")
@@ -165,7 +178,7 @@ impl Layer {
                             },
                         );
                 }
-                Object::Line(start, end) => {
+                Object::Line(start, end, line_width) => {
                     // eprintln!("render: line({:?}, {:?}) [{}]", start, end, id);
                     group = group.add(
                         svg::node::element::Line::new()
@@ -179,20 +192,22 @@ impl Layer {
                                     // TODO
                                     Some(Fill::Solid(color)) => {
                                         format!(
-                                            "fill: none; stroke: {}; stroke-width: 2px;",
-                                            color.to_string(&colormap)
+                                            "fill: none; stroke: {}; stroke-width: {}px;",
+                                            color.to_string(&colormap),
+                                            line_width
                                         )
                                     }
                                     _ => format!(
-                                        "fill: none; stroke: {}; stroke-width: 2px;",
-                                        default_color
+                                        "fill: none; stroke: {}; stroke-width: {}px;",
+                                        default_color, line_width
                                     ),
                                 },
                             ),
                     );
                 }
-                Object::CurveInward(start, end) | Object::CurveOutward(start, end) => {
-                    let inward = if matches!(object, Object::CurveInward(_, _)) {
+                Object::CurveInward(start, end, line_width)
+                | Object::CurveOutward(start, end, line_width) => {
+                    let inward = if matches!(object, Object::CurveInward(_, _, _)) {
                         // eprintln!("render: curve_inward({:?}, {:?}) [{}]", start, end, id);
                         true
                     } else {
@@ -283,12 +298,20 @@ impl Layer {
                                         format!(
                                             "fill: none; stroke: {}; stroke-width: {}px;",
                                             color.to_string(&colormap),
-                                            object_sizes.line_width
+                                            line_width
+                                        )
+                                    }
+                                    Some(Fill::Translucent(color, opacity)) => {
+                                        format!(
+                                            "fill: none; stroke: {}; stroke-width: {}px; opacity: {}",
+                                            color.to_string(&colormap),
+                                            line_width,
+                                            opacity
                                         )
                                     }
                                     _ => format!(
                                         "fill: none; stroke: {}; stroke-width: {}px;",
-                                        default_color, object_sizes.line_width
+                                        default_color, object_sizes.default_line_width
                                     ),
                                 },
                             ),

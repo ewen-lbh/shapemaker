@@ -1,3 +1,6 @@
+use std::f32::consts::E;
+
+use itertools::Itertools;
 use shapemaker::{Anchor, Canvas, CenterAnchor, Color, Fill, Layer, Object, Region, Video};
 mod cli;
 pub use cli::{canvas_from_cli, cli_args};
@@ -24,6 +27,7 @@ fn main() {
 
     let mut video = Video::<State>::new(canvas);
     video.duration_override = args.flag_duration.map(|seconds| seconds * 1000);
+    video.start_rendering_at = args.flag_start.unwrap_or_default() * 1000;
     video.fps = args.flag_fps.unwrap_or(30);
     video.audiofile = args.flag_audio.unwrap().into();
     video = video
@@ -50,7 +54,7 @@ fn main() {
             canvas.replace_or_create_layer(kicks);
 
             let mut ch = Layer::new("ch");
-            ch.add_object("dot", Object::SmallCircle(Anchor(2, 1)), Some(Fill::Solid(Color::Gray)));
+            ch.add_object("0", Object::Dot(Anchor(0, 0)), None);
             canvas.replace_or_create_layer(ch);
         })
         .sync_audio_with(&args.flag_sync_with.unwrap())
@@ -58,10 +62,9 @@ fn main() {
             // ctx.extra.bass_pattern_at = region_cycle(&canvas.world_region, None);
             canvas
                 .layer("anchor kick")
-                .unwrap()
                 .paint_all_objects(Fill::Translucent(Color::White, 1.0));
 
-            canvas.layer("anchor kick").unwrap().flush();
+            canvas.layer("anchor kick").flush();
 
             ctx.later_ms(200, &fade_out_kick_circles)
         })
@@ -76,44 +79,70 @@ fn main() {
             new_layer.paint_all_objects(Fill::Solid(Color::Red));
             canvas.replace_or_create_layer(new_layer)
         })
+        .on_note(
+            "rimshot, glitchy percs, hitting percs, glitchy percs",
+            &|canvas, ctx| {
+                let mut new_layer = canvas
+                    .random_layer_within("percs", &ctx.extra.bass_pattern_at.translated(2, 0));
+                new_layer.paint_all_objects(Fill::Translucent(Color::Red, 0.5));
+                canvas.replace_or_create_layer(new_layer);
+            },
+        )
         .on_note("qanda", &|canvas, ctx| {
-            let mut new_layer =
-                canvas.random_layer_within("qanda", &ctx.extra.bass_pattern_at.translated(-2, 0));
+            let mut new_layer = canvas.random_linelikes_within(
+                "qanda",
+                &ctx.extra.bass_pattern_at.translated(-1, -1).enlarged(1, 1),
+            );
             new_layer.paint_all_objects(Fill::Solid(Color::Orange));
+            new_layer.object_sizes.default_line_width = canvas.object_sizes.default_line_width
+                * 4.0
+                * ctx.stem("qanda").velocity_relative();
             canvas.replace_or_create_layer(new_layer)
         })
         .on_note("brokenup", &|canvas, ctx| {
             let mut new_layer = canvas
-                .random_layer_within("brokenup", &ctx.extra.bass_pattern_at.translated(0, -2));
+                .random_linelikes_within("brokenup", &ctx.extra.bass_pattern_at.translated(0, -2));
             new_layer.paint_all_objects(Fill::Solid(Color::Yellow));
+            new_layer.object_sizes.default_line_width = canvas.object_sizes.default_line_width
+                * 4.0
+                * ctx.stem("brokenup").velocity_relative();
             canvas.replace_or_create_layer(new_layer);
         })
         .on_note("goup", &|canvas, ctx| {
             let mut new_layer =
-                canvas.random_layer_within("goup", &ctx.extra.bass_pattern_at.translated(0, 2));
+                canvas.random_linelikes_within("goup", &ctx.extra.bass_pattern_at.translated(0, 2));
             new_layer.paint_all_objects(Fill::Solid(Color::Green));
+            new_layer.object_sizes.default_line_width =
+                canvas.object_sizes.default_line_width * 4.0 * ctx.stem("goup").velocity_relative();
             canvas.replace_or_create_layer(new_layer);
         })
-        .on_note("ch", &|canvas, _| {
+        .on_note("ch", &|canvas, ctx| {
             let world = canvas.world_region.clone();
-            let layer = canvas.layer("ch").unwrap();
-            let (obj, _) = layer.objects.get_mut("dot").unwrap();
-            obj.translate_with(hat_region_cycle(&world, &obj.region()));
-            layer.flush();
-        })
-        .on_note("flavor kick", &|canvas, _| {
-            let mut new_layer = canvas.random_layer_within(
-                "flavor kick",
-                &Region::from_origin_and_size((14, 0), (1, 1)),
+
+            // keep only the last 2 dots
+            let dots_to_keep = canvas
+                .layer("ch")
+                .objects
+                .iter()
+                .sorted_by_key(|(name, _)| name.parse::<usize>().unwrap())
+                .rev()
+                .take(2)
+                .map(|(name, _)| (name.clone()))
+                .collect::<Vec<_>>();
+
+            let layer = canvas.layer("ch");
+            layer.object_sizes.empty_shape_stroke_width = 2.0;
+            layer.objects.retain(|name, _| dots_to_keep.contains(name));
+
+            let object_name = format!("{}", ctx.ms);
+            layer.add_object(
+                &object_name,
+                Object::Dot(world.resized(-1, -1).random_coordinates_within().into()),
+                Some(Fill::Solid(Color::Cyan)),
             );
-            new_layer.paint_all_objects(Fill::Solid(Color::White));
-            canvas.replace_or_create_layer(new_layer);
-        })
-        .on_note("rimshot, glitchy percs", &|canvas, ctx| {
-            let mut new_layer =
-                canvas.random_layer_within("percs", &ctx.extra.bass_pattern_at.translated(2, 1));
-            new_layer.paint_all_objects(Fill::Translucent(Color::Red, 0.5));
-            canvas.replace_or_create_layer(new_layer);
+
+            canvas.put_layer_on_top("ch");
+            canvas.layer("ch").flush();
         })
         .when_remaining(10, &|canvas, _| {
             canvas.root().add_object(
@@ -137,10 +166,9 @@ fn main() {
 fn fade_out_kick_circles(canvas: &mut Canvas) {
     canvas
         .layer("anchor kick")
-        .unwrap()
         .paint_all_objects(Fill::Translucent(Color::White, 0.0));
 
-    canvas.layer("anchor kick").unwrap().flush();
+    canvas.layer("anchor kick").flush();
 }
 
 fn update_stem_position(
@@ -155,7 +183,7 @@ fn update_stem_position(
             Some(&ctx.extra.bass_pattern_at),
             offset,
         );
-    match canvas.layer(layer_name) {
+    match canvas.layer_safe(layer_name) {
         Some(l) => l.move_all_objects(dx, dy),
         _ => (),
     }
