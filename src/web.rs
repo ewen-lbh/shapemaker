@@ -38,6 +38,8 @@ pub fn render_image(opacity: f32, color: &str) -> Result<(), JsValue> {
     let body = document.body().expect("document should have a body");
 
     let output = document.create_element("div")?;
+    output.set_class_name("frame");
+    output.set_attribute("data-color", color)?;
     output.set_inner_html(&canvas.render(&vec!["*"], false));
     body.append_child(&output)?;
     Ok(())

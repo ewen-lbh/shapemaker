@@ -12,7 +12,7 @@
         await init()
         window.render_image = (vel, col) => {
           console.log([...arguments])
-          document.querySelector("body > div").remove()
+          document.querySelector(`.frame[data-color=${col}]`)?.remove()
           render_image(vel, col)
         }
       }
@@ -26,8 +26,14 @@
           input[1].onmidimessage = (msg) => {
             const [cmd, ...args] = [...msg.data]
             if (cmd === 248) return
-            if (cmd === 176) {
-              window.pedal_held = args[1] > 0
+            console.log(cmd, args)
+            if (cmd === 176 && args[0] === 64) {
+              const [_, intensity] = args
+              if (intensity === 0) {
+                document
+                  .querySelectorAll(".frame")
+                  ?.forEach((frame) => frame.remove())
+              }
               return
             }
             if (cmd !== 144) return
@@ -40,6 +46,8 @@
               "red",
               "orange",
               "yellow",
+              "green",
+              "cyan",
               "white",
             ]
             // get color uniformly in this range from 28 (lowest pitch) to 103 (highest pitch)
@@ -53,13 +61,16 @@
       })
     </script>
     <style>
-      body > div {
+      body {
+        background: #000;
+      }
+
+      .frame {
         position: fixed;
         top: 0;
         left: 0;
         right: 0;
         bottom: 0;
-        background: black;
         display: flex;
         justify-content: center;
         align-items: center;
