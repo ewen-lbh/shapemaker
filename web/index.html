@@ -20,6 +20,12 @@
 
       window.pedal_held = false
 
+      window.addEventListener("keypress", (e) => {
+        if (e.key === " ") {
+          window.render_image(1, "white")
+        }
+      })
+
       console.log("requesting midi access")
       navigator.requestMIDIAccess().then((midiAccess) => {
         Array.from(midiAccess.inputs).forEach((input) => {
