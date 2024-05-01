@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shapemaker Web</title>
+  </head>
+  <body>
+    <script type="module">
+      import init, { render_image } from "./shapemaker.js"
+      async function run() {
+        await init()
+        window.render_image = (vel, col) => {
+          console.log([...arguments])
+          document.querySelector("body > div").remove()
+          render_image(vel, col)
+        }
+      }
+      run()
+
+      window.pedal_held = false
+
+      console.log("requesting midi access")
+      navigator.requestMIDIAccess().then((midiAccess) => {
+        Array.from(midiAccess.inputs).forEach((input) => {
+          input[1].onmidimessage = (msg) => {
+            const [cmd, ...args] = [...msg.data]
+            if (cmd === 248) return
+            if (cmd === 176) {
+              window.pedal_held = args[1] > 0
+              return
+            }
+            if (cmd !== 144) return
+            const [pitch, velocity] = args
+            if (velocity === 0) return
+            const colors = [
+              "blue",
+              "purple",
+              "pink",
+              "red",
+              "orange",
+              "yellow",
+              "white",
+            ]
+            // get color uniformly in this range from 28 (lowest pitch) to 103 (highest pitch)
+
+            const color =
+              colors[Math.floor(((pitch - 28) / (103 - 28)) * colors.length)]
+            console.log(pitch, color)
+            window.render_image(velocity / 128, color ?? "white")
+          }
+        })
+      })
+    </script>
+    <style>
+      body > div {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: black;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+    </style>
+  </body>
+  <!-- <button onclick="render_image('white')">Render Image</button> -->
+</html>

@@ -3,6 +3,9 @@ name = "shapemaker"
 version = "1.1.0"
 edition = "2021"
 
+[lib]
+crate-type = ["cdylib"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -21,6 +24,16 @@ svg = "0.17.0"
 chrono-human-duration = "0.1.1"
 handlebars = "5.1.2"
 tiny_http = "0.12.0"
+wasm-bindgen = "0.2.92"
+getrandom = { version = "0.2", features = ["js"] }
+web-sys = { version = "0.3.4", features = [
+    'Document',
+    'Element',
+    'HtmlElement',
+    'Node',
+    'Window',
+] }
+
 
 [dev-dependencies]
 rust-analyzer = "0.0.1"

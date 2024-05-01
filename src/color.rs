@@ -30,6 +30,26 @@ impl Default for Color {
     }
 }
 
+impl From<&str> for Color {
+    fn from(s: &str) -> Self {
+        match s {
+            "black" => Color::Black,
+            "white" => Color::White,
+            "red" => Color::Red,
+            "green" => Color::Green,
+            "blue" => Color::Blue,
+            "yellow" => Color::Yellow,
+            "orange" => Color::Orange,
+            "purple" => Color::Purple,
+            "brown" => Color::Brown,
+            "cyan" => Color::Cyan,
+            "pink" => Color::Pink,
+            "gray" => Color::Gray,
+            _ => panic!("Invalid color: {}", s),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct ColorMapping {
     pub black: String,

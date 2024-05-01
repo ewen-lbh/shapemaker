@@ -78,8 +78,8 @@ impl RenderCSS for Fill {
                     opacity
                 )
             }
-            Fill::Dotted => unimplemented!(),
-            Fill::Hatched => unimplemented!(),
+            Fill::Dotted(..) => unimplemented!(),
+            Fill::Hatched(..) => unimplemented!(),
         }
     }
 }

@@ -2,6 +2,13 @@ build:
     cargo build
     cp target/debug/shapemaker .
 
+web:
+    wasm-pack build --target web -d web
+
+start-web:
+    just web
+    python3 -m http.server --directory web
+
 install:
     cp shapemaker ~/.local/bin/
 

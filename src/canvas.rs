@@ -145,7 +145,7 @@ impl Canvas {
         }
     }
 
-    pub fn random_layer(&self, name: &'static str) -> Layer {
+    pub fn random_layer(&self, name: &str) -> Layer {
         self.random_layer_within(name, &self.world_region)
     }
 
@@ -153,7 +153,7 @@ impl Canvas {
         self.random_object_within(&self.world_region)
     }
 
-    pub fn replace_or_create_layer(&mut self, layer: Layer) {
+    pub fn add_or_replace_layer(&mut self, layer: Layer) {
         if let Some(existing_layer) = self.layer_safe(&layer.name) {
             existing_layer.replace(layer);
         } else {
@@ -161,7 +161,7 @@ impl Canvas {
         }
     }
 
-    pub fn random_layer_within(&self, name: &'static str, region: &Region) -> Layer {
+    pub fn random_layer_within(&self, name: &str, region: &Region) -> Layer {
         let mut objects: HashMap<String, (Object, Option<Fill>)> = HashMap::new();
         let number_of_objects = rand::thread_rng().gen_range(self.objects_count_range.clone());
         for i in 0..number_of_objects {

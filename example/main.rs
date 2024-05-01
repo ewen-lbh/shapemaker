@@ -1,10 +1,12 @@
-use itertools::Itertools;
-use shapemaker::{Anchor, Canvas, Color, Fill, Layer, Object, Region, Video};
 mod cli;
 pub use cli::{canvas_from_cli, cli_args};
+use shapemaker::{Anchor, Canvas, Color, Fill, Layer, Object, Region, Video};
 
 fn main() {
-    let args = cli_args();
+    run(cli_args());
+}
+
+pub fn run(args: cli::Args) {
     let mut canvas = canvas_from_cli(&args);
 
     if args.cmd_image && !args.cmd_video {
@@ -49,11 +51,11 @@ fn main() {
             kicks.add_object("top right", circle_at(end_x, 1), fill);
             kicks.add_object("bottom left", circle_at(1, end_y), fill);
             kicks.add_object("bottom right", circle_at(end_x, end_y), fill);
-            canvas.replace_or_create_layer(kicks);
+            canvas.add_or_replace_layer(kicks);
 
             let mut ch = Layer::new("ch");
             ch.add_object("0", Object::Dot(Anchor(0, 0)), None);
-            canvas.replace_or_create_layer(ch);
+            canvas.add_or_replace_layer(ch);
         })
         .sync_audio_with(&args.flag_sync_with.unwrap())
         .on_note("anchor kick", &|canvas, ctx| {
@@ -69,13 +71,13 @@ fn main() {
         .on_note("bass", &|canvas, ctx| {
             let mut new_layer = canvas.random_layer_within("bass", &ctx.extra.bass_pattern_at);
             new_layer.paint_all_objects(Fill::Solid(Color::White));
-            canvas.replace_or_create_layer(new_layer);
+            canvas.add_or_replace_layer(new_layer);
         })
         .on_note("powerful clap hit, clap, perclap", &|canvas, ctx| {
             let mut new_layer =
                 canvas.random_layer_within("claps", &ctx.extra.bass_pattern_at.translated(2, 0));
             new_layer.paint_all_objects(Fill::Solid(Color::Red));
-            canvas.replace_or_create_layer(new_layer)
+            canvas.add_or_replace_layer(new_layer)
         })
         .on_note(
             "rimshot, glitchy percs, hitting percs, glitchy percs",
@@ -83,7 +85,7 @@ fn main() {
                 let mut new_layer = canvas
                     .random_layer_within("percs", &ctx.extra.bass_pattern_at.translated(2, 0));
                 new_layer.paint_all_objects(Fill::Translucent(Color::Red, 0.5));
-                canvas.replace_or_create_layer(new_layer);
+                canvas.add_or_replace_layer(new_layer);
             },
         )
         .on_note("qanda", &|canvas, ctx| {
@@ -95,7 +97,7 @@ fn main() {
             new_layer.object_sizes.default_line_width = canvas.object_sizes.default_line_width
                 * 4.0
                 * ctx.stem("qanda").velocity_relative();
-            canvas.replace_or_create_layer(new_layer)
+            canvas.add_or_replace_layer(new_layer)
         })
         .on_note("brokenup", &|canvas, ctx| {
             let mut new_layer = canvas
@@ -104,7 +106,7 @@ fn main() {
             new_layer.object_sizes.default_line_width = canvas.object_sizes.default_line_width
                 * 4.0
                 * ctx.stem("brokenup").velocity_relative();
-            canvas.replace_or_create_layer(new_layer);
+            canvas.add_or_replace_layer(new_layer);
         })
         .on_note("goup", &|canvas, ctx| {
             let mut new_layer =
@@ -112,7 +114,7 @@ fn main() {
             new_layer.paint_all_objects(Fill::Solid(Color::Green));
             new_layer.object_sizes.default_line_width =
                 canvas.object_sizes.default_line_width * 4.0 * ctx.stem("goup").velocity_relative();
-            canvas.replace_or_create_layer(new_layer);
+            canvas.add_or_replace_layer(new_layer);
         })
         .on_note("ch", &|canvas, ctx| {
             let world = canvas.world_region.clone();
