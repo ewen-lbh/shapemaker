@@ -1,0 +1,18 @@
+on: [push]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: jetli/wasm-pack-action@v0.4.0
+      - uses: extractions/setup-just@v2
+      - run: just web
+      - uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ewen.works
+          username: ewen
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: web/**
+          target: /home/ewen/www/shapemaker/
+          strip_components: 1
