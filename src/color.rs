@@ -6,6 +6,7 @@ use std::{
 };
 
 use serde::Deserialize;
+use rand::Rng;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -23,6 +24,25 @@ pub enum Color {
     Cyan,
     Pink,
     Gray,
+}
+
+#[wasm_bindgen]
+pub fn random_color() -> Color {
+    match rand::thread_rng().gen_range(1..=12) {
+        1 => Color::Black,
+        2 => Color::White,
+        3 => Color::Red,
+        4 => Color::Green,
+        5 => Color::Blue,
+        6 => Color::Yellow,
+        7 => Color::Orange,
+        8 => Color::Purple,
+        9 => Color::Brown,
+        10 => Color::Pink,
+        11 => Color::Gray,
+        12 => Color::Cyan,
+        _ => unreachable!(),
+    }
 }
 
 impl Default for Color {
@@ -88,6 +108,7 @@ impl Color {
     }
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Debug, Deserialize, Clone)]
 pub struct ColorMapping {
     pub black: String,
@@ -104,6 +125,7 @@ pub struct ColorMapping {
     pub gray: String,
 }
 
+#[wasm_bindgen]
 impl ColorMapping {
     pub fn default() -> Self {
         ColorMapping {
@@ -122,6 +144,21 @@ impl ColorMapping {
         }
     }
 
+    pub fn from_json(content: &str) -> ColorMapping {
+        let json: HashMap<String, String> = serde_json::from_str(content).unwrap();
+        ColorMapping::from_hashmap(json)
+    }
+
+    pub fn from_css(content: &str) -> ColorMapping {
+        let mut mapping = ColorMapping::default();
+        for line in content.lines() {
+            mapping.from_css_line(&line);
+        }
+        mapping
+    }
+}
+
+impl ColorMapping {
     pub fn from_cli_args(args: &Vec<String>) -> ColorMapping {
         let mut colormap: HashMap<String, String> = HashMap::new();
         for mapping in args {
@@ -209,9 +246,9 @@ impl ColorMapping {
     }
 
     pub fn from_css_file(path: PathBuf) -> ColorMapping {
+        let mut mapping = ColorMapping::default();
         let file = File::open(path).unwrap();
         let lines = std::io::BufReader::new(file).lines();
-        let mut mapping = ColorMapping::default();
         for line in lines {
             if let Ok(line) = line {
                 mapping.from_css_line(&line);

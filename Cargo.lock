@@ -607,6 +607,7 @@ dependencies = [
  "indicatif",
  "itertools",
  "midly",
+ "once_cell",
  "rand",
  "rust-analyzer",
  "serde",

@@ -1,3 +1,6 @@
+use wasm_bindgen::prelude::wasm_bindgen;
+
+#[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Anchor(pub i32, pub i32);
 
@@ -15,6 +18,7 @@ impl From<(i32, i32)> for Anchor {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[wasm_bindgen]
 pub struct CenterAnchor(pub i32, pub i32);
 
 impl CenterAnchor {

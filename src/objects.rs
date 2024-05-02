@@ -1,4 +1,5 @@
 use crate::{Anchor, CenterAnchor, ColorMapping, Coordinates, Fill, Region};
+use wasm_bindgen::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LineSegment {
@@ -21,6 +22,16 @@ pub enum Object {
     RawSVG(Box<dyn svg::Node>),
 }
 
+#[derive(Debug, Clone)]
+pub struct ColoredObject(pub Object, pub Option<Fill>);
+
+impl From<(Object, Option<Fill>)> for ColoredObject {
+    fn from(value: (Object, Option<Fill>)) -> Self {
+        ColoredObject(value.0, value.1)
+    }
+}
+
+#[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
 pub struct ObjectSizes {
     pub empty_shape_stroke_width: f32,

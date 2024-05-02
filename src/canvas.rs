@@ -5,8 +5,8 @@ use chrono::DateTime;
 use rand::Rng;
 
 use crate::{
-    layer::Layer, objects::Object, Anchor, CenterAnchor, Color, ColorMapping, Fill, LineSegment,
-    ObjectSizes, Region,
+    layer::Layer, objects::Object, random_color, Anchor, CenterAnchor, Color, ColorMapping,
+    ColoredObject, Fill, LineSegment, ObjectSizes, Region,
 };
 
 #[derive(Debug, Clone)]
@@ -110,7 +110,9 @@ impl Canvas {
         match self.layer_safe(layer) {
             None => Err(format!("Layer {} does not exist", layer)),
             Some(layer) => {
-                layer.objects.insert(name.to_string(), (object, fill));
+                layer
+                    .objects
+                    .insert(name.to_string(), (object, fill).into());
                 Ok(())
             }
         }
@@ -162,13 +164,13 @@ impl Canvas {
     }
 
     pub fn random_layer_within(&self, name: &str, region: &Region) -> Layer {
-        let mut objects: HashMap<String, (Object, Option<Fill>)> = HashMap::new();
+        let mut objects: HashMap<String, ColoredObject> = HashMap::new();
         let number_of_objects = rand::thread_rng().gen_range(self.objects_count_range.clone());
         for i in 0..number_of_objects {
             let object = self.random_object_within(region);
             objects.insert(
                 format!("{}#{}", name, i),
-                (
+                ColoredObject(
                     object,
                     if rand::thread_rng().gen_bool(0.5) {
                         Some(self.random_fill())
@@ -186,14 +188,18 @@ impl Canvas {
         }
     }
 
-    pub fn random_linelikes_within(&self, layer_name: &'static str, region: &Region) -> Layer {
-        let mut objects: HashMap<String, (Object, Option<Fill>)> = HashMap::new();
+    pub fn random_linelikes(&self, layer_name: &str) -> Layer {
+        self.random_linelikes_within(layer_name, &self.world_region)
+    }
+
+    pub fn random_linelikes_within(&self, layer_name: &str, region: &Region) -> Layer {
+        let mut objects: HashMap<String, ColoredObject> = HashMap::new();
         let number_of_objects = rand::thread_rng().gen_range(self.objects_count_range.clone());
         for i in 0..number_of_objects {
             let object = self.random_linelike_within(region);
             objects.insert(
                 format!("{}#{}", layer_name, i),
-                (
+                ColoredObject(
                     object,
                     if rand::thread_rng().gen_bool(0.5) {
                         Some(self.random_fill())
@@ -341,31 +347,13 @@ impl Canvas {
     }
 
     pub fn random_fill(&self) -> Fill {
-        Fill::Solid(self.random_color())
+        Fill::Solid(random_color())
         // match rand::thread_rng().gen_range(1..=3) {
         //     1 => Fill::Solid(random_color()),
         //     2 => Fill::Hatched,
         //     3 => Fill::Dotted,
         //     _ => unreachable!(),
         // }
-    }
-
-    pub fn random_color(&self) -> Color {
-        match rand::thread_rng().gen_range(1..=12) {
-            1 => Color::Black,
-            2 => Color::White,
-            3 => Color::Red,
-            4 => Color::Green,
-            5 => Color::Blue,
-            6 => Color::Yellow,
-            7 => Color::Orange,
-            8 => Color::Purple,
-            9 => Color::Brown,
-            10 => Color::Pink,
-            11 => Color::Gray,
-            12 => Color::Cyan,
-            _ => unreachable!(),
-        }
     }
 
     pub fn clear(&mut self) {

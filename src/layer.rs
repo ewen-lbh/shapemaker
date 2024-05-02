@@ -1,10 +1,12 @@
-use crate::{ColorMapping, Fill, Object, ObjectSizes};
+use crate::{ColorMapping, ColoredObject, Fill, Object, ObjectSizes};
 use std::collections::HashMap;
+use wasm_bindgen::prelude::*;
 
 #[derive(Debug, Clone, Default)]
+// #[wasm_bindgen(getter_with_clone)]
 pub struct Layer {
     pub object_sizes: ObjectSizes,
-    pub objects: HashMap<String, (Object, Option<Fill>)>,
+    pub objects: HashMap<String, ColoredObject>,
     pub name: String,
     pub _render_cache: Option<svg::node::element::Group>,
 }
@@ -19,7 +21,7 @@ impl Layer {
         }
     }
 
-    pub fn object(&mut self, name: &str) -> &mut (Object, Option<Fill>) {
+    pub fn object(&mut self, name: &str) -> &mut ColoredObject {
         self.objects.get_mut(name).unwrap()
     }
 
@@ -34,7 +36,7 @@ impl Layer {
     }
 
     pub fn paint_all_objects(&mut self, fill: Fill) {
-        for (_id, (_, maybe_fill)) in &mut self.objects {
+        for (_id, ColoredObject(_, ref mut maybe_fill)) in &mut self.objects {
             *maybe_fill = Some(fill.clone());
         }
         self.flush();
@@ -43,12 +45,12 @@ impl Layer {
     pub fn move_all_objects(&mut self, dx: i32, dy: i32) {
         self.objects
             .iter_mut()
-            .for_each(|(_, (obj, _))| obj.translate(dx, dy));
+            .for_each(|(_, ColoredObject(obj, _))| obj.translate(dx, dy));
         self.flush();
     }
 
     pub fn add_object(&mut self, name: &str, object: Object, fill: Option<Fill>) {
-        self.objects.insert(name.to_string(), (object, fill));
+        self.objects.insert(name.to_string(), (object, fill).into());
         self.flush();
     }
 
@@ -77,7 +79,7 @@ impl Layer {
             .set("class", "layer")
             .set("data-layer", self.name.clone());
 
-        for (id, (object, maybe_fill)) in &self.objects {
+        for (id, ColoredObject(object, maybe_fill)) in &self.objects {
             layer_group = layer_group.add(object.render(
                 cell_size,
                 object_sizes,

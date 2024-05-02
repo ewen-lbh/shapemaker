@@ -6,8 +6,19 @@
     <title>Shapemaker Web</title>
   </head>
   <body>
+    <div class="prev"></div>
     <script type="module">
-      import init, { render_image, Color, color_name } from "./shapemaker.js"
+      import init, {
+        render_image,
+        LayerWeb,
+        render_canvas,
+        Color,
+        color_name,
+        set_palette,
+        random_linelikes,
+        ColorMapping,
+        random_color,
+      } from "./shapemaker.js"
       async function run() {
         await init()
         window.renderImage = (vel, col) => {
@@ -16,6 +27,25 @@
             ?.forEach((el) => el.remove())
           render_image(vel, col)
         }
+
+        set_palette(
+          ColorMapping.from_css(`
+            :root {
+              black: #000000;
+              white: #ffffff;
+              red: #cf0a2b;
+              green: #22e753;
+              blue: #2734e6;
+              yellow: #f8e21e;
+              orange: #f05811;
+              purple: #6a24ec;
+              brown: #a05634;
+              pink: #e92e76;
+              gray: #81a0a8;
+              cyan: #4fecec;
+            }
+        `)
+        )
       }
       run()
 
@@ -32,10 +62,18 @@
       }
 
       window.pedal_held = false
+      window.previousColor = null
 
       window.addEventListener("keypress", (e) => {
         if (e.key === " ") {
-          window.renderImage(1, Color.White)
+          const layer = random_linelikes("feur")
+          let color = random_color()
+          while ([Color.Black, Color.Gray, window.previousColor].includes(color)) {
+            color = random_color()
+          }
+          window.previousColor = color
+          layer.paint_all(color, 0.75)
+          layer.render_into("body")
         }
       })
 

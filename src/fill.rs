@@ -69,11 +69,11 @@ impl RenderCSS for Fill {
     fn render_stroke_css(&self, colormap: &ColorMapping) -> String {
         match self {
             Fill::Solid(color) => {
-                format!("stroke: {};", color.to_string(colormap))
+                format!("stroke: {}; fill: transparent;", color.to_string(colormap))
             }
             Fill::Translucent(color, opacity) => {
                 format!(
-                    "stroke: {}; opacity: {};",
+                    "stroke: {}; opacity: {}; fill: transparent;",
                     color.to_string(colormap),
                     opacity
                 )
