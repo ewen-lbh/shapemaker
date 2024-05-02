@@ -7,12 +7,12 @@
   </head>
   <body>
     <script type="module">
-      import init, { render_image } from "./shapemaker.js"
+      import init, { render_image, Color, color_name } from "./shapemaker.js"
       async function run() {
         await init()
-        window.render_image = (vel, col) => {
+        window.renderImage = (vel, col) => {
           console.log([...arguments])
-          document.querySelector(`.frame[data-color=${col}]`)?.remove()
+          document.querySelector(`.frame[data-color=${color_name(col)}]`)?.remove()
           render_image(vel, col)
         }
       }
@@ -22,7 +22,7 @@
 
       window.addEventListener("keypress", (e) => {
         if (e.key === " ") {
-          window.render_image(1, "white")
+          window.renderImage(1, Color.White)
         }
       })
 
@@ -46,22 +46,22 @@
             const [pitch, velocity] = args
             if (velocity === 0) return
             const colors = [
-              "blue",
-              "purple",
-              "pink",
-              "red",
-              "orange",
-              "yellow",
-              "green",
-              "cyan",
-              "white",
+              Color.Blue,
+              Color.Purple,
+              Color.Pink,
+              Color.Red,
+              Color.Orange,
+              Color.Yellow,
+              Color.Green,
+              Color.Cyan,
+              Color.White,
             ]
             // get color uniformly in this range from 28 (lowest pitch) to 103 (highest pitch)
 
             const color =
               colors[Math.floor(((pitch - 28) / (103 - 28)) * colors.length)]
             console.log(pitch, color)
-            window.render_image(velocity / 128, color ?? "white")
+            window.renderImage(velocity / 128, color ?? "white")
           }
         })
       })

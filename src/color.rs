@@ -5,9 +5,10 @@ use std::{
     path::PathBuf,
 };
 
-use itertools::Itertools;
 use serde::Deserialize;
+use wasm_bindgen::prelude::*;
 
+#[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Color {
     Black,
@@ -47,6 +48,43 @@ impl From<&str> for Color {
             "gray" => Color::Gray,
             _ => panic!("Invalid color: {}", s),
         }
+    }
+}
+
+impl Color {
+    pub fn to_string(self, mapping: &ColorMapping) -> String {
+        match self {
+            Color::Black => mapping.black.to_string(),
+            Color::White => mapping.white.to_string(),
+            Color::Red => mapping.red.to_string(),
+            Color::Green => mapping.green.to_string(),
+            Color::Blue => mapping.blue.to_string(),
+            Color::Yellow => mapping.yellow.to_string(),
+            Color::Orange => mapping.orange.to_string(),
+            Color::Purple => mapping.purple.to_string(),
+            Color::Brown => mapping.brown.to_string(),
+            Color::Cyan => mapping.cyan.to_string(),
+            Color::Pink => mapping.pink.to_string(),
+            Color::Gray => mapping.gray.to_string(),
+        }
+    }
+
+    pub fn name(&self) -> String {
+        match self {
+            Color::Black => "black",
+            Color::White => "white",
+            Color::Red => "red",
+            Color::Green => "green",
+            Color::Blue => "blue",
+            Color::Yellow => "yellow",
+            Color::Orange => "orange",
+            Color::Purple => "purple",
+            Color::Brown => "brown",
+            Color::Cyan => "cyan",
+            Color::Pink => "pink",
+            Color::Gray => "gray",
+        }
+        .to_string()
     }
 }
 
@@ -200,25 +238,6 @@ impl ColorMapping {
                 "gray" => self.gray = value,
                 _ => (),
             }
-        }
-    }
-}
-
-impl Color {
-    pub fn to_string(self, mapping: &ColorMapping) -> String {
-        match self {
-            Color::Black => mapping.black.to_string(),
-            Color::White => mapping.white.to_string(),
-            Color::Red => mapping.red.to_string(),
-            Color::Green => mapping.green.to_string(),
-            Color::Blue => mapping.blue.to_string(),
-            Color::Yellow => mapping.yellow.to_string(),
-            Color::Orange => mapping.orange.to_string(),
-            Color::Purple => mapping.purple.to_string(),
-            Color::Brown => mapping.brown.to_string(),
-            Color::Cyan => mapping.cyan.to_string(),
-            Color::Pink => mapping.pink.to_string(),
-            Color::Gray => mapping.gray.to_string(),
         }
     }
 }

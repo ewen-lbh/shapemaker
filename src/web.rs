@@ -5,12 +5,18 @@ use crate::{Canvas, Color, ColorMapping, Fill};
 
 #[wasm_bindgen(start)]
 pub fn main() -> Result<(), JsValue> {
-    render_image(0.0, "black")?;
+    render_image(0.0, Color::Black)?;
     Ok(())
 }
 
+// Can't bind Color.name directly, see https://github.com/rustwasm/wasm-bindgen/issues/1715
 #[wasm_bindgen]
-pub fn render_image(opacity: f32, color: &str) -> Result<(), JsValue> {
+pub fn color_name(c: Color) -> String {
+    c.name()
+}
+
+#[wasm_bindgen]
+pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
     let mut canvas = Canvas::default_settings();
     canvas.colormap = ColorMapping {
         black: "#ffffff".into(),
@@ -29,7 +35,7 @@ pub fn render_image(opacity: f32, color: &str) -> Result<(), JsValue> {
 
     canvas.set_grid_size(4, 4);
 
-    let mut layer = canvas.random_layer(&color);
+    let mut layer = canvas.random_layer(&color.name());
     layer.paint_all_objects(Fill::Translucent(color.into(), opacity));
     canvas.add_or_replace_layer(layer);
 
@@ -39,7 +45,7 @@ pub fn render_image(opacity: f32, color: &str) -> Result<(), JsValue> {
 
     let output = document.create_element("div")?;
     output.set_class_name("frame");
-    output.set_attribute("data-color", color)?;
+    output.set_attribute("data-color", &color.name())?;
     output.set_inner_html(&canvas.render(&vec!["*"], false));
     body.append_child(&output)?;
     Ok(())
