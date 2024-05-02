@@ -9,6 +9,8 @@ tags:
 made with:
 - rust
 - svg
+- ffmpeg
+- imagemagick
 ---
 
 # Shapemaker
