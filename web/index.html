@@ -11,12 +11,25 @@
       async function run() {
         await init()
         window.renderImage = (vel, col) => {
-          console.log([...arguments])
-          document.querySelector(`.frame[data-color=${color_name(col)}]`)?.remove()
+          document
+            .querySelectorAll(`.frame[data-color=${color_name(col)}]`)
+            ?.forEach((el) => el.remove())
           render_image(vel, col)
         }
       }
       run()
+
+      function fadeOutElement(el) {
+        if (!el) return
+        const duration = window.pedal_held ? 5e3 : 200
+        el.style.transition = `opacity ${duration}ms ease-out`
+        el.style.opacity = 0
+        setTimeout(() => el.remove(), duration)
+      }
+
+      function frameElement(color) {
+        return document.querySelector(`.frame[data-color=${color_name(color)}]`)
+      }
 
       window.pedal_held = false
 
@@ -35,16 +48,15 @@
             console.log(cmd, args)
             if (cmd === 176 && args[0] === 64) {
               const [_, intensity] = args
+              window.pedal_held = intensity > 0
               if (intensity === 0) {
-                document
-                  .querySelectorAll(".frame")
-                  ?.forEach((frame) => frame.remove())
+                document.querySelectorAll(".frame")?.forEach(fadeOutElement)
               }
               return
             }
             if (cmd !== 144) return
             const [pitch, velocity] = args
-            if (velocity === 0) return
+
             const colors = [
               Color.Blue,
               Color.Purple,
@@ -54,14 +66,19 @@
               Color.Yellow,
               Color.Green,
               Color.Cyan,
-              Color.White,
             ]
-            // get color uniformly in this range from 28 (lowest pitch) to 103 (highest pitch)
 
-            const color =
-              colors[Math.floor(((pitch - 28) / (103 - 28)) * colors.length)]
-            console.log(pitch, color)
-            window.renderImage(velocity / 128, color ?? "white")
+            // get octave from pitch
+            const octave = Math.floor(pitch / 12) - 1
+
+            // if octave is 0, use the first color
+            const color = colors[octave] ?? colors[0]
+
+            if (velocity === 0) {
+              fadeOutElement(frameElement(color))
+            } else {
+              window.renderImage(velocity / 128, color ?? "white")
+            }
           }
         })
       })
