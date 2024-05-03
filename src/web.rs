@@ -6,7 +6,8 @@ use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen};
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
 use crate::{
-    layer, Anchor, Canvas, CenterAnchor, Color, ColorMapping, Fill, Filter, Layer, Object,
+    layer, Anchor, Canvas, CenterAnchor, Color, ColorMapping, Fill, Filter, FilterType, Layer,
+    Object,
 };
 
 static WEB_CANVAS: Lazy<Mutex<Canvas>> = Lazy::new(|| Mutex::new(Canvas::default_settings()));
@@ -16,7 +17,7 @@ fn canvas() -> std::sync::MutexGuard<'static, Canvas> {
 }
 
 #[wasm_bindgen(start)]
-pub fn main() -> Result<(), JsValue> {
+pub fn js_init() -> Result<(), JsValue> {
     render_image(0.0, Color::Black)?;
     Ok(())
 }
@@ -59,10 +60,9 @@ pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
 
     canvas.set_grid_size(4, 4);
 
-    console_log!("Amerika ya :D {}", "Hallo :D ".repeat(8));
-
     let mut layer = canvas.random_layer(&color.name());
     layer.paint_all_objects(Fill::Translucent(color.into(), opacity));
+    // layer.filter_all_objects(Filter::glow(3.0));
     canvas.add_or_replace_layer(layer);
 
     let window = web_sys::window().expect("no global `window` exists");
@@ -75,6 +75,18 @@ pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
     output.set_inner_html(&canvas.render(&vec!["*"], false));
     body.append_child(&output)?;
     Ok(())
+}
+
+#[wasm_bindgen]
+pub fn render_canvas_into(selector: String) -> () {
+    let svgstring = canvas().render(&vec!["*"], false);
+    append_new_div_inside(svgstring, selector)
+}
+
+#[wasm_bindgen]
+pub fn render_canvas_at(selector: String) -> () {
+    let svgstring = canvas().render(&vec!["*"], false);
+    replace_content_with(svgstring, selector)
 }
 
 #[wasm_bindgen]
@@ -172,12 +184,36 @@ pub fn get_layer(name: &str) -> Result<LayerWeb, JsValue> {
 
 #[wasm_bindgen]
 pub fn random_linelikes(name: &str) -> LayerWeb {
-    console_log!("Canvas is {:?}", canvas());
     let layer = canvas().random_linelikes(name);
     canvas().add_or_replace_layer(layer);
     LayerWeb {
         name: name.to_string(),
     }
+}
+
+fn document() -> web_sys::Document {
+    let window = web_sys::window().expect_throw("no global `window` exists");
+    window
+        .document()
+        .expect_throw("should have a document on window")
+}
+
+fn query_selector(selector: String) -> web_sys::Element {
+    document()
+        .query_selector(&selector)
+        .expect_throw(&format!("selector '{}' not found", selector))
+        .expect_throw("could not get the element, but is was found (shouldn't happen)")
+}
+
+fn append_new_div_inside(content: String, selector: String) -> () {
+    let output = document().create_element("div").unwrap();
+    output.set_class_name("frame");
+    output.set_inner_html(&content);
+    query_selector(selector).append_child(&output).unwrap();
+}
+
+fn replace_content_with(content: String, selector: String) -> () {
+    query_selector(selector).set_inner_html(&content);
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -192,19 +228,11 @@ impl LayerWeb {
     }
 
     pub fn render_into(&self, selector: String) -> () {
-        let window = web_sys::window().expect_throw("no global `window` exists");
-        let document = window
-            .document()
-            .expect_throw("should have a document on window");
-        let element = document
-            .query_selector(&selector)
-            .expect_throw(&format!("selector '{}' not found", selector))
-            .expect_throw("could not get the element, but is was found (shouldn't happen)");
+        append_new_div_inside(self.render(), selector)
+    }
 
-        let output = document.create_element("div").unwrap();
-        output.set_class_name("frame");
-        output.set_inner_html(&self.render());
-        element.append_child(&output).unwrap();
+    pub fn render_at(self, selector: String) -> () {
+        replace_content_with(self.render(), selector)
     }
 
     pub fn paint_all(&self, color: Color, opacity: Option<f32>, filter: Filter) -> () {

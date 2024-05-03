@@ -1,6 +1,6 @@
 use docopt::Docopt;
 use serde::Deserialize;
-use shapemaker::{Canvas, ColorMapping};
+use crate::{Canvas, ColorMapping};
 
 const USAGE: &str = "
 ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄

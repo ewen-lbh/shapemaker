@@ -4,9 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Shapemaker Web</title>
-  </head>
-  <body>
-    <div class="prev"></div>
     <script type="module">
       import init, {
         render_image,
@@ -19,6 +16,7 @@
         Filter,
         ColorMapping,
         random_color,
+        render_canvas_at,
       } from "./shapemaker.js"
       async function run() {
         await init()
@@ -53,7 +51,7 @@
       function randomColor() {
         const colors = [Color.Cyan, Color.Pink]
         const random = Math.floor(Math.random() * colors.length)
-        return colors[random];
+        return colors[random]
       }
 
       function fadeOutElement(el) {
@@ -70,14 +68,15 @@
 
       window.pedal_held = false
       window.previousColor = null
+      window.numberOfFrames = 0
 
       window.addEventListener("keypress", (e) => {
         if (e.key === " ") {
-          const layer = random_linelikes("feur")
+          const layer = random_linelikes(`feur${window.numberOfFrames++}`)
           let color = randomColor()
           window.previousColor = color
-          layer.paint_all(color, 1, Filter.Glow)
-          layer.render_into("body")
+          layer.paint_all(color, 1, Filter.glow(7))
+          render_canvas_at("body")
         }
       })
 
@@ -141,6 +140,8 @@
         align-items: center;
       }
     </style>
+  </head>
+  <body>
+    <div class="prev"></div>
   </body>
-  <!-- <button onclick="render_image('white')">Render Image</button> -->
 </html>

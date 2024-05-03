@@ -1,4 +1,5 @@
 mod color;
+pub mod cli;
 mod objects;
 pub use color::*;
 pub use objects::*;
@@ -9,7 +10,7 @@ pub use fill::*;
 mod region;
 pub use region::*;
 mod web;
-pub use web::{log, main};
+pub use web::log;
 mod audio;
 pub use audio::*;
 mod sync;
@@ -867,3 +868,5 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         spinner.end(&format!("Built video to {}", output_file));
     }
 }
+
+fn main() {}

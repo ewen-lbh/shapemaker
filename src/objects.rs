@@ -174,7 +174,6 @@ impl Object {
 
         let mut css = String::new();
         if !matches!(self, Object::RawSVG(..)) {
-            // group = group.set("style", fill.render_css(colormap, !self.fillable()));
             css = fill.render_css(colormap, !self.fillable());
         }
 
@@ -185,13 +184,7 @@ impl Object {
             .join(" ")
             .as_ref();
 
-        group = group.set("data-object", id).set("style", css);
-
-        for f in filter {
-            group = group.add(f.definition().set("id", f.id()))
-        }
-
-        group
+        group.set("data-object", id).set("style", css)
     }
 
     fn render_raw_svg(&self) -> Box<dyn svg::node::Node> {

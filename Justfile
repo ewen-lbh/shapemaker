@@ -1,5 +1,5 @@
 build:
-    cargo build
+    cargo build --bin shapemaker
     cp target/debug/shapemaker .
 
 web:

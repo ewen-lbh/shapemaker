@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use wasm_bindgen::prelude::*;
 
 use crate::RenderCSS;
@@ -17,12 +19,21 @@ pub struct Filter {
     pub parameter: f32,
 }
 
+#[wasm_bindgen]
 impl Filter {
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> String {
         match self.kind {
             FilterType::Glow => "glow",
             FilterType::NaturalShadow => "natural-shadow-filter",
             FilterType::Saturation => "saturation",
+        }
+        .to_owned()
+    }
+
+    pub fn glow(intensity: f32) -> Self {
+        Self {
+            kind: FilterType::Glow,
+            parameter: intensity,
         }
     }
 
@@ -33,7 +44,9 @@ impl Filter {
             self.parameter.to_string().replace(".", "_")
         )
     }
+}
 
+impl Filter {
     pub fn definition(&self) -> svg::node::element::Filter {
         match self.kind {
             FilterType::Glow => {
@@ -113,12 +126,14 @@ impl Filter {
                 )
             }
         }
+        .set("id", self.id())
+        .set("filterUnit", "userSpaceOnUse")
     }
 }
 
 impl RenderCSS for Filter {
     fn render_fill_css(&self, _colormap: &crate::ColorMapping) -> String {
-        format!("filter: url(#{});", self.name())
+        format!("filter: url(#{}); overflow: visible;", self.id())
     }
 
     fn render_stroke_css(&self, colormap: &crate::ColorMapping) -> String {
@@ -132,3 +147,11 @@ impl PartialEq for Filter {
         self.kind == other.kind && (self.parameter - other.parameter).abs() < f32::EPSILON
     }
 }
+
+impl Hash for Filter {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id().hash(state)
+    }
+}
+
+impl Eq for Filter {}

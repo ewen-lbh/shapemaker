@@ -2,6 +2,7 @@ use core::panic;
 use std::{cmp, collections::HashMap, io::Write, ops::Range};
 
 use chrono::DateTime;
+use itertools::Itertools;
 use rand::Rng;
 
 use crate::{
@@ -156,7 +157,6 @@ impl Canvas {
     }
 
     pub fn add_or_replace_layer(&mut self, layer: Layer) {
-        console_log!("ijogjrjoigeojigjoijoigerjoi");
         if let Some(existing_layer) = self.layer_safe(&layer.name) {
             existing_layer.replace(layer);
         } else {
@@ -195,7 +195,6 @@ impl Canvas {
     }
 
     pub fn random_linelikes_within(&self, layer_name: &str, region: &Region) -> Layer {
-        console_log!("iurgrhierihA");
         let mut objects: HashMap<String, ColoredObject> = HashMap::new();
         let number_of_objects = rand::thread_rng().gen_range(self.objects_count_range.clone());
         for i in 0..number_of_objects {
@@ -249,7 +248,6 @@ impl Canvas {
 
     pub fn random_linelike_within(&self, region: &Region) -> Object {
         let start = self.random_anchor(region);
-        console_log!("start: {:?}", start);
         match rand::thread_rng().gen_range(1..=3) {
             1 => Object::CurveInward(
                 start,
@@ -322,7 +320,6 @@ impl Canvas {
     }
 
     pub fn random_anchor(&self, region: &Region) -> Anchor {
-        console_log!("region: {:?}", region);
         if self.region_is_whole_grid(region)
             && rand::thread_rng().gen_bool(1.0 / (self.grid_size.0 * self.grid_size.1) as f64)
         {
@@ -409,6 +406,17 @@ impl Canvas {
         self.cell_size * (self.grid_size.1 - 1) + 2 * self.canvas_outter_padding
     }
 
+    /// returns a list of all unique filters used throughout the canvas
+    /// used to only generate one definition per filter
+    ///
+    fn unique_filters(&self) -> Vec<Filter> {
+        self.layers
+            .iter()
+            .flat_map(|layer| layer.objects.iter().flat_map(|(_, o)| o.2.clone()))
+            .unique()
+            .collect()
+    }
+
     pub fn render(&mut self, layers: &Vec<&str>, render_background: bool) -> String {
         let background_color = self.background.unwrap_or_default();
         let mut svg = svg::Document::new();
@@ -431,6 +439,9 @@ impl Canvas {
             svg = svg.add(layer.render(self.colormap.clone(), self.cell_size, layer.object_sizes));
         }
 
+        for filter in self.unique_filters() {
+            svg = svg.add(filter.definition())
+        }
 
         svg.set(
             "viewBox",
