@@ -49,6 +49,12 @@
       }
       run()
 
+      function randomColor() {
+        const colors = [Color.Cyan, Color.Pink]
+        const random = Math.floor(Math.random() * colors.length)
+        return colors[random];
+      }
+
       function fadeOutElement(el) {
         if (!el) return
         const duration = window.pedal_held ? 5e3 : 200
@@ -67,12 +73,9 @@
       window.addEventListener("keypress", (e) => {
         if (e.key === " ") {
           const layer = random_linelikes("feur")
-          let color = random_color()
-          while ([Color.Black, Color.Gray, window.previousColor].includes(color)) {
-            color = random_color()
-          }
+          let color = randomColor()
           window.previousColor = color
-          layer.paint_all(color, 0.75)
+          layer.paint_all(color, 1)
           layer.render_into("body")
         }
       })

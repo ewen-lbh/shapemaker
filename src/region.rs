@@ -1,17 +1,42 @@
 use crate::{Anchor, CenterAnchor};
 use rand::Rng;
 
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Point(pub usize, pub usize);
+
+impl From<(usize, usize)> for Point {
+    fn from(value: (usize, usize)) -> Self {
+        Self(value.0, value.1)
+    }
+}
+
+impl From<(i32, i32)> for Point {
+    fn from(value: (i32, i32)) -> Self {
+        Self(value.0 as usize, value.1 as usize)
+    }
+}
+
+impl PartialEq<(usize, usize)> for Point {
+    fn eq(&self, other: &(usize, usize)) -> bool {
+        self.0 == other.0 && self.1 == other.1
+    }
+}
+
+#[wasm_bindgen]
 #[derive(Debug, Clone, Default, Copy)]
 pub struct Region {
-    pub start: (usize, usize),
-    pub end: (usize, usize),
+    pub start: Point,
+    pub end: Point,
 }
 
 impl From<((usize, usize), (usize, usize))> for Region {
     fn from(value: ((usize, usize), (usize, usize))) -> Self {
         Region {
-            start: value.0,
-            end: value.1,
+            start: value.0.into(),
+            end: value.1.into(),
         }
     }
 }
@@ -19,8 +44,8 @@ impl From<((usize, usize), (usize, usize))> for Region {
 impl From<(&Anchor, &Anchor)> for Region {
     fn from(value: (&Anchor, &Anchor)) -> Self {
         Region {
-            start: (value.0 .0 as usize, value.0 .1 as usize),
-            end: (value.1 .0 as usize, value.1 .1 as usize),
+            start: (value.0 .0, value.0 .1).into(),
+            end: (value.1 .0, value.1 .1).into(),
         }
     }
 }
@@ -28,8 +53,8 @@ impl From<(&Anchor, &Anchor)> for Region {
 impl From<(&CenterAnchor, &CenterAnchor)> for Region {
     fn from(value: (&CenterAnchor, &CenterAnchor)) -> Self {
         Region {
-            start: (value.0 .0 as usize, value.0 .1 as usize),
-            end: (value.1 .0 as usize, value.1 .1 as usize),
+            start: (value.0 .0, value.0 .1).into(),
+            end: (value.1 .0, value.1 .1).into(),
         }
     }
 }
@@ -57,8 +82,8 @@ fn test_sub_and_transate_coherence() {
 impl Region {
     pub fn new(start_x: usize, start_y: usize, end_x: usize, end_y: usize) -> Self {
         let region = Self {
-            start: (start_x, start_y),
-            end: (end_x, end_y),
+            start: (start_x, start_y).into(),
+            end: (end_x, end_y).into(),
         };
         region.ensure_valid();
         region
@@ -122,11 +147,13 @@ impl Region {
             start: (
                 (self.start.0 as i32 + dx) as usize,
                 (self.start.1 as i32 + dy) as usize,
-            ),
+            )
+                .into(),
             end: (
                 (self.end.0 as i32 + dx) as usize,
                 (self.end.1 as i32 + dy) as usize,
-            ),
+            )
+                .into(),
         }
         .ensure_valid()
     }
@@ -138,7 +165,8 @@ impl Region {
             end: (
                 (self.end.0 as i32 + dx) as usize,
                 (self.end.1 as i32 + dy) as usize,
-            ),
+            )
+                .into(),
         }
         .ensure_valid()
     }
@@ -175,8 +203,9 @@ impl Region {
             start: (
                 self.start.0.max(within.start.0),
                 self.start.1.max(within.start.1),
-            ),
-            end: (self.end.0.min(within.end.0), self.end.1.min(within.end.1)),
+            )
+                .into(),
+            end: (self.end.0.min(within.end.0), self.end.1.min(within.end.1)).into(),
         }
     }
 

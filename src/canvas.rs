@@ -5,8 +5,8 @@ use chrono::DateTime;
 use rand::Rng;
 
 use crate::{
-    layer::Layer, objects::Object, random_color, Anchor, CenterAnchor, Color, ColorMapping,
-    ColoredObject, Fill, LineSegment, ObjectSizes, Region,
+    layer::Layer, objects::Object, random_color, web::console_log, Anchor, CenterAnchor, Color,
+    ColorMapping, ColoredObject, Fill, LineSegment, ObjectSizes, Point, Region,
 };
 
 #[derive(Debug, Clone)]
@@ -51,8 +51,8 @@ impl Canvas {
     pub fn set_grid_size(&mut self, new_width: usize, new_height: usize) {
         self.grid_size = (new_width, new_height);
         self.world_region = Region {
-            start: (0, 0),
-            end: self.grid_size,
+            start: Point(0, 0),
+            end: self.grid_size.into(),
         };
     }
 
@@ -156,6 +156,7 @@ impl Canvas {
     }
 
     pub fn add_or_replace_layer(&mut self, layer: Layer) {
+        console_log!("ijogjrjoigeojigjoijoigerjoi");
         if let Some(existing_layer) = self.layer_safe(&layer.name) {
             existing_layer.replace(layer);
         } else {
@@ -193,6 +194,7 @@ impl Canvas {
     }
 
     pub fn random_linelikes_within(&self, layer_name: &str, region: &Region) -> Layer {
+        console_log!("iurgrhierihA");
         let mut objects: HashMap<String, ColoredObject> = HashMap::new();
         let number_of_objects = rand::thread_rng().gen_range(self.objects_count_range.clone());
         for i in 0..number_of_objects {
@@ -245,6 +247,7 @@ impl Canvas {
 
     pub fn random_linelike_within(&self, region: &Region) -> Object {
         let start = self.random_anchor(region);
+        console_log!("start: {:?}", start);
         match rand::thread_rng().gen_range(1..=3) {
             1 => Object::CurveInward(
                 start,
@@ -317,6 +320,7 @@ impl Canvas {
     }
 
     pub fn random_anchor(&self, region: &Region) -> Anchor {
+        console_log!("region: {:?}", region);
         if self.region_is_whole_grid(region)
             && rand::thread_rng().gen_bool(1.0 / (self.grid_size.0 * self.grid_size.1) as f64)
         {

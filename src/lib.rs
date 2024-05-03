@@ -9,7 +9,7 @@ pub use fill::*;
 mod region;
 pub use region::*;
 mod web;
-pub use web::main;
+pub use web::{log, main};
 mod audio;
 pub use audio::*;
 mod sync;

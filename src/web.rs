@@ -26,6 +26,20 @@ pub fn color_name(c: Color) -> String {
 }
 
 #[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    pub fn log(s: &str);
+}
+
+
+macro_rules! console_log {
+    ($($t:tt)*) => (crate::log(&format_args!($($t)*).to_string()))
+}
+
+pub(crate) use console_log;
+
+
+#[wasm_bindgen]
 pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
     let mut canvas = Canvas::default_settings();
     canvas.colormap = ColorMapping {
@@ -44,6 +58,8 @@ pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
     };
 
     canvas.set_grid_size(4, 4);
+
+    console_log!("Amerika ya :D {}", "Hallo :D".repeat(8));
 
     let mut layer = canvas.random_layer(&color.name());
     layer.paint_all_objects(Fill::Translucent(color.into(), opacity));
@@ -156,7 +172,9 @@ pub fn get_layer(name: &str) -> Result<LayerWeb, JsValue> {
 
 #[wasm_bindgen]
 pub fn random_linelikes(name: &str) -> LayerWeb {
-    canvas().add_or_replace_layer(canvas().random_linelikes(name));
+    console_log!("Canvas is {:?}", canvas());
+    let layer = canvas().random_linelikes(name);
+    canvas().add_or_replace_layer(layer);
     LayerWeb {
         name: name.to_string(),
     }

@@ -1,4 +1,4 @@
-use crate::{Anchor, CenterAnchor, ColorMapping, Coordinates, Fill, Region};
+use crate::{Anchor, CenterAnchor, ColorMapping, Coordinates, Fill, Point, Region};
 use wasm_bindgen::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,7 +98,7 @@ impl Object {
     }
 
     pub fn teleport(&mut self, x: i32, y: i32) {
-        let (current_x, current_y) = self.region().start;
+        let Point(current_x, current_y) = self.region().start;
         let delta_x = x - current_x as i32;
         let delta_y = y - current_y as i32;
         self.translate(delta_x, delta_y);
