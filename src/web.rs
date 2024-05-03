@@ -5,7 +5,9 @@ use once_cell::sync::Lazy;
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen};
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
-use crate::{layer, Anchor, Canvas, CenterAnchor, Color, ColorMapping, Fill, Layer, Object};
+use crate::{
+    layer, Anchor, Canvas, CenterAnchor, Color, ColorMapping, Fill, Filter, Layer, Object,
+};
 
 static WEB_CANVAS: Lazy<Mutex<Canvas>> = Lazy::new(|| Mutex::new(Canvas::default_settings()));
 
@@ -31,13 +33,11 @@ extern "C" {
     pub fn log(s: &str);
 }
 
-
 macro_rules! console_log {
     ($($t:tt)*) => (crate::log(&format_args!($($t)*).to_string()))
 }
 
 pub(crate) use console_log;
-
 
 #[wasm_bindgen]
 pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
@@ -59,7 +59,7 @@ pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
 
     canvas.set_grid_size(4, 4);
 
-    console_log!("Amerika ya :D {}", "Hallo :D".repeat(8));
+    console_log!("Amerika ya :D {}", "Hallo :D ".repeat(8));
 
     let mut layer = canvas.random_layer(&color.name());
     layer.paint_all_objects(Fill::Translucent(color.into(), opacity));
@@ -207,10 +207,11 @@ impl LayerWeb {
         element.append_child(&output).unwrap();
     }
 
-    pub fn paint_all(&self, color: Color, opacity: Option<f32>) -> () {
+    pub fn paint_all(&self, color: Color, opacity: Option<f32>, filter: Filter) -> () {
         canvas()
             .layer(&self.name)
             .paint_all_objects(Fill::Translucent(color, opacity.unwrap_or(1.0)));
+        canvas().layer(&self.name).filter_all_objects(filter);
     }
 
     pub fn random(name: &str) -> Self {

@@ -1,4 +1,4 @@
-use crate::{ColorMapping, ColoredObject, Fill, Object, ObjectSizes};
+use crate::{ColorMapping, ColoredObject, Fill, Filter, Object, ObjectSizes};
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
@@ -36,8 +36,15 @@ impl Layer {
     }
 
     pub fn paint_all_objects(&mut self, fill: Fill) {
-        for (_id, ColoredObject(_, ref mut maybe_fill)) in &mut self.objects {
+        for (_id, ColoredObject(_, ref mut maybe_fill, _)) in &mut self.objects {
             *maybe_fill = Some(fill.clone());
+        }
+        self.flush();
+    }
+
+    pub fn filter_all_objects(&mut self, filter: Filter) {
+        for (_id, ColoredObject(_, _, ref mut filters)) in &mut self.objects {
+            filters.push(filter)
         }
         self.flush();
     }
@@ -45,7 +52,7 @@ impl Layer {
     pub fn move_all_objects(&mut self, dx: i32, dy: i32) {
         self.objects
             .iter_mut()
-            .for_each(|(_, ColoredObject(obj, _))| obj.translate(dx, dy));
+            .for_each(|(_, ColoredObject(obj, _, _))| obj.translate(dx, dy));
         self.flush();
     }
 
@@ -79,13 +86,14 @@ impl Layer {
             .set("class", "layer")
             .set("data-layer", self.name.clone());
 
-        for (id, ColoredObject(object, maybe_fill)) in &self.objects {
+        for (id, ColoredObject(object, maybe_fill, filters)) in &self.objects {
             layer_group = layer_group.add(object.render(
                 cell_size,
                 object_sizes,
                 &colormap,
                 &id,
                 *maybe_fill,
+                filters,
             ));
         }
 

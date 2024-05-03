@@ -6,7 +6,7 @@ use rand::Rng;
 
 use crate::{
     layer::Layer, objects::Object, random_color, web::console_log, Anchor, CenterAnchor, Color,
-    ColorMapping, ColoredObject, Fill, LineSegment, ObjectSizes, Point, Region,
+    ColorMapping, ColoredObject, Fill, Filter, LineSegment, ObjectSizes, Point, Region,
 };
 
 #[derive(Debug, Clone)]
@@ -178,6 +178,7 @@ impl Canvas {
                     } else {
                         None
                     },
+                    vec![],
                 ),
             );
         }
@@ -208,6 +209,7 @@ impl Canvas {
                     } else {
                         None
                     },
+                    vec![],
                 ),
             );
         }
@@ -428,6 +430,8 @@ impl Canvas {
         {
             svg = svg.add(layer.render(self.colormap.clone(), self.cell_size, layer.object_sizes));
         }
+
+        svg = svg.add(Filter::Glow.definition());
 
         svg.set(
             "viewBox",

@@ -19,6 +19,8 @@ mod layer;
 pub use layer::*;
 mod canvas;
 pub use canvas::*;
+mod filter;
+pub use filter::*;
 mod midi;
 mod preview;
 use anyhow::Result;

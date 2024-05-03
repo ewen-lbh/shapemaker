@@ -16,6 +16,7 @@
         color_name,
         set_palette,
         random_linelikes,
+        Filter,
         ColorMapping,
         random_color,
       } from "./shapemaker.js"
@@ -75,7 +76,7 @@
           const layer = random_linelikes("feur")
           let color = randomColor()
           window.previousColor = color
-          layer.paint_all(color, 1)
+          layer.paint_all(color, 1, Filter.Glow)
           layer.render_into("body")
         }
       })

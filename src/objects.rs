@@ -1,4 +1,5 @@
-use crate::{Anchor, CenterAnchor, ColorMapping, Coordinates, Fill, Point, Region};
+use crate::{Anchor, CenterAnchor, ColorMapping, Coordinates, Fill, Filter, Point, Region};
+use itertools::Itertools;
 use wasm_bindgen::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,11 +24,11 @@ pub enum Object {
 }
 
 #[derive(Debug, Clone)]
-pub struct ColoredObject(pub Object, pub Option<Fill>);
+pub struct ColoredObject(pub Object, pub Option<Fill>, pub Vec<Filter>);
 
 impl From<(Object, Option<Fill>)> for ColoredObject {
     fn from(value: (Object, Option<Fill>)) -> Self {
-        ColoredObject(value.0, value.1)
+        ColoredObject(value.0, value.1, vec![])
     }
 }
 
@@ -153,6 +154,7 @@ impl Object {
         colormap: &ColorMapping,
         id: &str,
         fill: Option<Fill>,
+        filter: &Vec<Filter>,
     ) -> svg::node::element::Group {
         let mut group = svg::node::element::Group::new();
 
@@ -170,11 +172,20 @@ impl Object {
 
         group = group.add(rendered);
 
+        let mut css = String::new();
         if !matches!(self, Object::RawSVG(..)) {
-            group = group.set("style", fill.render_css(colormap, !self.fillable()));
+            // group = group.set("style", fill.render_css(colormap, !self.fillable()));
+            css = fill.render_css(colormap, !self.fillable());
         }
 
-        group = group.set("data-object", id);
+        css += filter
+            .iter()
+            .map(|f| f.render_fill_css(colormap))
+            .into_iter()
+            .join(" ")
+            .as_ref();
+
+        group = group.set("data-object", id).set("style", css);
         group
     }
 
