@@ -2,12 +2,13 @@ use std::ptr::NonNull;
 use std::sync::Mutex;
 
 use once_cell::sync::Lazy;
+use rand::Rng;
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen};
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
 use crate::{
     layer, Anchor, Canvas, CenterAnchor, Color, ColorMapping, Fill, Filter, FilterType,
-    HatchDirection, Layer, Object,
+    HatchDirection, Layer, Object, Point,
 };
 
 static WEB_CANVAS: Lazy<Mutex<Canvas>> = Lazy::new(|| Mutex::new(Canvas::default_settings()));
@@ -57,28 +58,43 @@ pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
         gray: "#81a0a8".into(),
         cyan: "#4fecec".into(),
     };
+    canvas.set_grid_size(16, 9);
 
-    canvas.set_grid_size(4, 4);
+    let mut layer = Layer::new("root");
 
-    let mut layer = canvas.random_layer(&color.name());
-    layer.paint_all_objects(Fill::Hatched(
-        color.into(),
-        HatchDirection::BottomUpDiagonal,
-        opacity,
-        opacity,
-    ));
-    // layer.filter_all_objects(Filter::glow(3.0));
-    canvas.add_or_replace_layer(layer);
+    let draw_in = canvas.world_region.resized(-1, -1).enlarged(-2, -2);
+    let red_circle_at = draw_in.random_point_within();
 
-    let window = web_sys::window().expect("no global `window` exists");
-    let document = window.document().expect("should have a document on window");
-    let body = document.body().expect("document should have a body");
+    console_log!("Red circle at {:?}", red_circle_at);
 
-    let output = document.create_element("div")?;
-    output.set_class_name("frame");
-    output.set_attribute("data-color", &color.name())?;
-    output.set_inner_html(&canvas.render(&vec!["*"], false));
-    body.append_child(&output)?;
+    for (i, Point(x, y)) in draw_in.iter().enumerate() {
+        console_log!("Adding object at ({}, {})", x, y);
+        layer.add_object(
+            &format!("{}-{}", x, y),
+            if rand::thread_rng().gen_bool(0.5) && red_circle_at != Point(x, y) {
+                Object::BigCircle((x, y).into())
+            } else {
+                Object::Rectangle((x, y).into(), Anchor::from((x, y)).translated(1, 1))
+            }
+            .color(if red_circle_at == Point(x, y) {
+                Fill::Solid(Color::Red)
+            } else {
+                Fill::Hatched(
+                    Color::White,
+                    HatchDirection::BottomUpDiagonal,
+                    (i + 1) as f32 / 10.0,
+                    0.25,
+                )
+            }),
+            // .filter(Filter::glow(7.0)),
+        );
+    }
+    console_log!("Registering layer");
+    canvas.layers.push(layer);
+    canvas.set_background(Color::Black);
+    *WEB_CANVAS.lock().unwrap() = canvas;
+    render_canvas_at(String::from("body"));
+
     Ok(())
 }
 
@@ -226,6 +242,8 @@ pub struct LayerWeb {
     pub name: String,
 }
 
+// #[wasm_bindgen()]
+
 #[wasm_bindgen]
 impl LayerWeb {
     pub fn render(&self) -> String {
@@ -265,8 +283,11 @@ impl LayerWeb {
     ) -> () {
         canvas().layer(name).add_object(
             name,
-            Object::Line(start, end, thickness),
-            Some(Fill::Solid(color)),
+            (
+                Object::Line(start, end, thickness),
+                Some(Fill::Solid(color)),
+            )
+                .into(),
         )
     }
     pub fn new_curve_outward(
@@ -279,8 +300,7 @@ impl LayerWeb {
     ) -> () {
         canvas().layer(name).add_object(
             name,
-            Object::CurveOutward(start, end, thickness),
-            Some(Fill::Solid(color)),
+            Object::CurveOutward(start, end, thickness).color(Fill::Solid(color)),
         )
     }
     pub fn new_curve_inward(
@@ -293,24 +313,23 @@ impl LayerWeb {
     ) -> () {
         canvas().layer(name).add_object(
             name,
-            Object::CurveInward(start, end, thickness),
-            Some(Fill::Solid(color)),
+            Object::CurveInward(start, end, thickness).color(Fill::Solid(color)),
         )
     }
     pub fn new_small_circle(&self, name: &str, center: Anchor, color: Color) -> () {
         canvas()
             .layer(name)
-            .add_object(name, Object::SmallCircle(center), Some(Fill::Solid(color)))
+            .add_object(name, Object::SmallCircle(center).color(Fill::Solid(color)))
     }
     pub fn new_dot(&self, name: &str, center: Anchor, color: Color) -> () {
         canvas()
             .layer(name)
-            .add_object(name, Object::Dot(center), Some(Fill::Solid(color)))
+            .add_object(name, Object::Dot(center).color(Fill::Solid(color)))
     }
     pub fn new_big_circle(&self, name: &str, center: CenterAnchor, color: Color) -> () {
         canvas()
             .layer(name)
-            .add_object(name, Object::BigCircle(center), Some(Fill::Solid(color)))
+            .add_object(name, Object::BigCircle(center).color(Fill::Solid(color)))
     }
     pub fn new_text(
         &self,
@@ -322,8 +341,7 @@ impl LayerWeb {
     ) -> () {
         canvas().layer(name).add_object(
             name,
-            Object::Text(anchor, text, font_size),
-            Some(Fill::Solid(color)),
+            Object::Text(anchor, text, font_size).color(Fill::Solid(color)),
         )
     }
     pub fn new_rectangle(
@@ -335,8 +353,7 @@ impl LayerWeb {
     ) -> () {
         canvas().layer(name).add_object(
             name,
-            Object::Rectangle(topleft, bottomright),
-            Some(Fill::Solid(color)),
+            Object::Rectangle(topleft, bottomright).color(Fill::Solid(color)),
         )
     }
 }

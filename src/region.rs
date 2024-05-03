@@ -32,6 +32,47 @@ pub struct Region {
     pub end: Point,
 }
 
+impl Region {
+    pub fn iter(&self) -> RegionIterator {
+        self.into()
+    }
+
+    pub fn random_point_within(&self) -> Point {
+        Point::from(self.random_coordinates_within())
+    }
+}
+
+pub struct RegionIterator {
+    region: Region,
+    current: Point,
+}
+
+impl Iterator for RegionIterator {
+    type Item = Point;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.0 >= self.region.end.0 {
+            self.current.0 = self.region.start.0;
+            self.current.1 += 1;
+        }
+        if self.current.1 >= self.region.end.1 {
+            return None;
+        }
+        let result = self.current;
+        self.current.0 += 1;
+        Some(result)
+    }
+}
+
+impl From<&Region> for RegionIterator {
+    fn from(region: &Region) -> Self {
+        Self {
+            region: region.clone(),
+            current: region.start.clone(),
+        }
+    }
+}
+
 impl From<((usize, usize), (usize, usize))> for Region {
     fn from(value: ((usize, usize), (usize, usize))) -> Self {
         Region {

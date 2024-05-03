@@ -1,4 +1,5 @@
 use crate::{ColorMapping, ColoredObject, Fill, Filter, Object, ObjectSizes};
+use anyhow::Context;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
@@ -56,9 +57,20 @@ impl Layer {
         self.flush();
     }
 
-    pub fn add_object(&mut self, name: &str, object: Object, fill: Option<Fill>) {
-        self.objects.insert(name.to_string(), (object, fill).into());
+    pub fn add_object(&mut self, name: &str, object: ColoredObject) {
+        self.objects.insert(name.to_string(), object);
         self.flush();
+    }
+
+    pub fn filter_object(&mut self, name: &str, filter: Filter) -> Result<(), String> {
+        self.objects
+            .get_mut(name)
+            .ok_or(format!("Object '{}' not found", name))?
+            .2
+            .push(filter);
+
+        self.flush();
+        Ok(())
     }
 
     pub fn remove_object(&mut self, name: &str) {
@@ -66,9 +78,9 @@ impl Layer {
         self.flush();
     }
 
-    pub fn replace_object(&mut self, name: &str, object: Object, fill: Option<Fill>) {
+    pub fn replace_object(&mut self, name: &str, object: ColoredObject) {
         self.remove_object(name);
-        self.add_object(name, object, fill);
+        self.add_object(name, object);
     }
 
     /// Render the layer to a SVG group element.

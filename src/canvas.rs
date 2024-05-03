@@ -8,7 +8,8 @@ use svg::node::element::Pattern;
 
 use crate::{
     layer::Layer, objects::Object, random_color, web::console_log, Anchor, CenterAnchor, Color,
-    ColorMapping, ColoredObject, Fill, Filter, LineSegment, ObjectSizes, Point, Region,
+    ColorMapping, ColoredObject, Fill, Filter, HatchDirection, LineSegment, ObjectSizes, Point,
+    Region,
 };
 
 #[derive(Debug, Clone)]
@@ -170,12 +171,13 @@ impl Canvas {
         let number_of_objects = rand::thread_rng().gen_range(self.objects_count_range.clone());
         for i in 0..number_of_objects {
             let object = self.random_object_within(region);
+            let hatchable = object.hatchable();
             objects.insert(
                 format!("{}#{}", name, i),
                 ColoredObject(
                     object,
                     if rand::thread_rng().gen_bool(0.5) {
-                        Some(self.random_fill())
+                        Some(self.random_fill(hatchable))
                     } else {
                         None
                     },
@@ -200,12 +202,13 @@ impl Canvas {
         let number_of_objects = rand::thread_rng().gen_range(self.objects_count_range.clone());
         for i in 0..number_of_objects {
             let object = self.random_linelike_within(region);
+            let hatchable = object.fillable();
             objects.insert(
                 format!("{}#{}", layer_name, i),
                 ColoredObject(
                     object,
                     if rand::thread_rng().gen_bool(0.5) {
-                        Some(self.random_fill())
+                        Some(self.random_fill(hatchable))
                     } else {
                         None
                     },
@@ -350,14 +353,29 @@ impl Canvas {
         }
     }
 
-    pub fn random_fill(&self) -> Fill {
-        Fill::Solid(random_color())
-        // match rand::thread_rng().gen_range(1..=3) {
-        //     1 => Fill::Solid(random_color()),
-        //     2 => Fill::Hatched,
-        //     3 => Fill::Dotted,
-        //     _ => unreachable!(),
-        // }
+    pub fn random_fill(&self, hatchable: bool) -> Fill {
+        if hatchable {
+            match rand::thread_rng().gen_range(1..=2) {
+                1 => Fill::Solid(random_color()),
+                2 => {
+                    let hatch_size = rand::thread_rng().gen_range(5..=100) as f32 * 1e-2;
+                    Fill::Hatched(
+                        random_color(),
+                        HatchDirection::BottomUpDiagonal,
+                        hatch_size,
+                        // under a certain hatch size, we can't see the hatching if the ratio is not ½
+                        if hatch_size < 8.0 {
+                            0.5
+                        } else {
+                            rand::thread_rng().gen_range(1..=4) as f32 / 4.0
+                        },
+                    )
+                }
+                _ => unreachable!(),
+            }
+        } else {
+            Fill::Solid(random_color())
+        }
     }
 
     pub fn clear(&mut self) {

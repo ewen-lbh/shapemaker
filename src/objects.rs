@@ -24,8 +24,35 @@ pub enum Object {
     RawSVG(Box<dyn svg::Node>),
 }
 
+impl Object {
+    pub fn color(self, fill: Fill) -> ColoredObject {
+        ColoredObject::from((self, Some(fill)))
+    }
+
+    pub fn filter(self, filter: Filter) -> ColoredObject {
+        ColoredObject::from((self, None)).filter(filter)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ColoredObject(pub Object, pub Option<Fill>, pub Vec<Filter>);
+
+impl ColoredObject {
+    pub fn filter(mut self, filter: Filter) -> Self {
+        self.2.push(filter);
+        self
+    }
+
+    pub fn clear_filters(&mut self) {
+        self.2.clear();
+    }
+}
+
+impl From<Object> for ColoredObject {
+    fn from(value: Object) -> Self {
+        ColoredObject(value, None, vec![])
+    }
+}
 
 impl From<(Object, Option<Fill>)> for ColoredObject {
     fn from(value: (Object, Option<Fill>)) -> Self {
@@ -146,6 +173,10 @@ impl Object {
             self,
             Object::Line(..) | Object::CurveInward(..) | Object::CurveOutward(..)
         )
+    }
+
+    pub fn hatchable(&self) -> bool {
+        self.fillable() && !matches!(self, Object::Dot(..))
     }
 
     pub fn render(

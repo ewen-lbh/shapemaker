@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use rand::Rng;
 use shapemaker::{
     cli::{canvas_from_cli, cli_args},
     *,
@@ -12,18 +13,49 @@ pub fn run(args: cli::Args) {
     let mut canvas = canvas_from_cli(&args);
 
     if args.cmd_image && !args.cmd_video {
-        canvas.layers.push(Layer::new("root"));
-        canvas.set_background(Color::White);
-        canvas.layer("root").add_object(
-            "feur",
-            Object::Rectangle(Anchor(0, 0), Anchor(2, 2)),
-            Some(Fill::Hatched(
-                Color::Red,
-                HatchDirection::BottomUpDiagonal,
-                2.0,
-                0.25,
-            )),
-        );
+        let mut layer = Layer::new("root");
+
+        let red_circle_at = canvas.world_region.enlarged(-1, -1).random_point_within();
+
+        for (i, Point(x, y)) in canvas
+            .world_region
+            .resized(-1, -1)
+            .enlarged(-2, -2)
+            .iter()
+            .enumerate()
+        {
+            layer.add_object(
+                &format!("{}-{}", x, y),
+                if rand::thread_rng().gen_bool(0.5) && red_circle_at != Point(x, y) {
+                    Object::BigCircle((x, y).into())
+                } else {
+                    Object::Rectangle((x, y).into(), Anchor::from((x, y)).translated(1, 1))
+                }
+                .color(if red_circle_at == Point(x, y) {
+                    Fill::Solid(Color::Red)
+                } else {
+                    Fill::Hatched(
+                        Color::White,
+                        HatchDirection::BottomUpDiagonal,
+                        (i + 1) as f32 / 10.0,
+                        0.25,
+                    )
+                }),
+                // .filter(Filter::glow(7.0)),
+            );
+        }
+        canvas.layers.push(layer);
+        canvas.set_background(Color::Black);
+        // canvas.layer("root").add_object(
+        //     "feur",
+        //     Object::Rectangle(Anchor(0, 0), Anchor(2, 2)),
+        //     Some(Fill::Hatched(
+        //         Color::Red,
+        //         HatchDirection::BottomUpDiagonal,
+        //         2.0,
+        //         0.25,
+        //     )),
+        // );
         // canvas.layers[0].paint_all_objects(Fill::Hatched(
         //     Color::Red,
         //     HatchDirection::BottomUpDiagonal,
@@ -63,21 +95,21 @@ pub fn run(args: cli::Args) {
 
             let mut kicks = Layer::new("anchor kick");
 
-            let fill = Some(Fill::Translucent(Color::White, 0.0));
+            let fill = Fill::Translucent(Color::White, 0.0);
             let circle_at = |x: usize, y: usize| Object::SmallCircle(Anchor(x as i32, y as i32));
 
             let (end_x, end_y) = {
                 let Point(x, y) = canvas.world_region.end;
                 (x - 2, y - 2)
             };
-            kicks.add_object("top left", circle_at(1, 1), fill);
-            kicks.add_object("top right", circle_at(end_x, 1), fill);
-            kicks.add_object("bottom left", circle_at(1, end_y), fill);
-            kicks.add_object("bottom right", circle_at(end_x, end_y), fill);
+            kicks.add_object("top left", circle_at(1, 1).color(fill));
+            kicks.add_object("top right", circle_at(end_x, 1).color(fill));
+            kicks.add_object("bottom left", circle_at(1, end_y).color(fill));
+            kicks.add_object("bottom right", circle_at(end_x, end_y).color(fill));
             canvas.add_or_replace_layer(kicks);
 
             let mut ch = Layer::new("ch");
-            ch.add_object("0", Object::Dot(Anchor(0, 0)), None);
+            ch.add_object("0", Object::Dot(Anchor(0, 0)).into());
             canvas.add_or_replace_layer(ch);
         })
         .sync_audio_with(&args.flag_sync_with.unwrap())
@@ -160,8 +192,8 @@ pub fn run(args: cli::Args) {
             let object_name = format!("{}", ctx.ms);
             layer.add_object(
                 &object_name,
-                Object::Dot(world.resized(-1, -1).random_coordinates_within().into()),
-                Some(Fill::Solid(Color::Cyan)),
+                Object::Dot(world.resized(-1, -1).random_coordinates_within().into())
+                    .color(Fill::Solid(Color::Cyan)),
             );
 
             canvas.put_layer_on_top("ch");
@@ -170,8 +202,7 @@ pub fn run(args: cli::Args) {
         .when_remaining(10, &|canvas, _| {
             canvas.root().add_object(
                 "credits text",
-                Object::RawSVG(Box::new(svg::node::Text::new("by ewen-lbh"))),
-                None,
+                Object::RawSVG(Box::new(svg::node::Text::new("by ewen-lbh"))).into(),
             );
         })
         .command("remove", &|argumentsline, canvas, _| {

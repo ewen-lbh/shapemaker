@@ -10,6 +10,10 @@ impl Anchor {
         self.1 += dy;
     }
 
+    pub fn translated(&self, dx: i32, dy: i32) -> Self {
+        Anchor(self.0 + dx, self.1 + dy)
+    }
+
     pub fn distances(&self, other: &Anchor) -> (usize, usize) {
         (
             self.0.abs_diff(other.0) as usize,
@@ -27,6 +31,18 @@ impl From<(i32, i32)> for Anchor {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[wasm_bindgen]
 pub struct CenterAnchor(pub i32, pub i32);
+
+impl From<(usize, usize)> for CenterAnchor {
+    fn from(value: (usize, usize)) -> Self {
+        CenterAnchor(value.0 as i32, value.1 as i32)
+    }
+}
+
+impl From<(usize, usize)> for Anchor {
+    fn from(value: (usize, usize)) -> Self {
+        Anchor(value.0 as i32, value.1 as i32)
+    }
+}
 
 impl CenterAnchor {
     pub fn translate(&mut self, dx: i32, dy: i32) {
