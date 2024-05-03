@@ -1,5 +1,8 @@
 use itertools::Itertools;
-use shapemaker::{cli::{canvas_from_cli, cli_args}, *};
+use shapemaker::{
+    cli::{canvas_from_cli, cli_args},
+    *,
+};
 
 pub fn main() {
     run(cli_args());
@@ -9,17 +12,38 @@ pub fn run(args: cli::Args) {
     let mut canvas = canvas_from_cli(&args);
 
     if args.cmd_image && !args.cmd_video {
-        canvas.layers.push(canvas.random_layer("root"));
+        canvas.layers.push(Layer::new("root"));
         canvas.set_background(Color::White);
+        canvas.layer("root").add_object(
+            "feur",
+            Object::Rectangle(Anchor(0, 0), Anchor(2, 2)),
+            Some(Fill::Hatched(
+                Color::Red,
+                HatchDirection::BottomUpDiagonal,
+                2.0,
+                0.25,
+            )),
+        );
+        // canvas.layers[0].paint_all_objects(Fill::Hatched(
+        //     Color::Red,
+        //     HatchDirection::BottomUpDiagonal,
+        //     3.0,
+        // ));
         let aspect_ratio = canvas.grid_size.0 as f32 / canvas.grid_size.1 as f32;
-        match Canvas::save_as_png(
-            &args.arg_file,
-            aspect_ratio,
-            args.flag_resolution.unwrap_or(1000),
-            canvas.render(&vec!["*"], true),
-        ) {
-            Ok(_) => println!("Image saved to {}", args.arg_file),
-            Err(e) => println!("Error saving image: {}", e),
+
+        let rendered = canvas.render(&vec!["*"], true);
+        if args.arg_file.ends_with(".svg") {
+            std::fs::write(args.arg_file, rendered).unwrap();
+        } else {
+            match Canvas::save_as(
+                &args.arg_file,
+                aspect_ratio,
+                args.flag_resolution.unwrap_or(1000),
+                rendered,
+            ) {
+                Ok(_) => println!("Image saved to {}", args.arg_file),
+                Err(e) => println!("Error saving image: {}", e),
+            }
         }
         return;
     }

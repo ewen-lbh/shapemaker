@@ -5,8 +5,8 @@ use std::{
     path::PathBuf,
 };
 
-use serde::Deserialize;
 use rand::Rng;
+use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -72,7 +72,7 @@ impl From<&str> for Color {
 }
 
 impl Color {
-    pub fn to_string(self, mapping: &ColorMapping) -> String {
+    pub fn render(self, mapping: &ColorMapping) -> String {
         match self {
             Color::Black => mapping.black.to_string(),
             Color::White => mapping.white.to_string(),
@@ -259,7 +259,7 @@ impl ColorMapping {
 
     fn from_css_line(&mut self, line: &str) {
         if let Some((name, value)) = line.trim().split_once(":") {
-            let value = value.trim().to_owned();
+            let value = value.trim().trim_end_matches(";").to_owned();
             match name.trim() {
                 "black" => self.black = value,
                 "white" => self.white = value,

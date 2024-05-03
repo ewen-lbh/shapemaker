@@ -24,7 +24,7 @@ pub fn render_template(
             "frames":frames,
             "audiopath": path_to_audio_file,
             "enginesource": engine_js_source,
-            "background": canvas.background.map_or("black".to_string(), |color| color.to_string(&canvas.colormap)),
+            "background": canvas.background.map_or("black".to_string(), |color| color.render(&canvas.colormap)),
             "serverorigin": format!("http://localhost:{}", port),
             "framesbuffersize": FRAMES_BUFFER_SIZE,
         }),

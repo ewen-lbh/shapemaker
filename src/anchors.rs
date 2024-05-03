@@ -9,6 +9,13 @@ impl Anchor {
         self.0 += dx;
         self.1 += dy;
     }
+
+    pub fn distances(&self, other: &Anchor) -> (usize, usize) {
+        (
+            self.0.abs_diff(other.0) as usize,
+            self.1.abs_diff(other.1) as usize,
+        )
+    }
 }
 
 impl From<(i32, i32)> for Anchor {

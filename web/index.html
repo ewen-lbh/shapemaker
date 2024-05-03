@@ -23,7 +23,7 @@
         window.renderImage = (vel, col) => {
           document
             .querySelectorAll(`.frame[data-color=${color_name(col)}]`)
-            ?.forEach((el) => el.remove())
+            ?.forEach((el) => fadeOutElement(el, 200))
           render_image(vel, col)
         }
 
@@ -54,9 +54,9 @@
         return colors[random]
       }
 
-      function fadeOutElement(el) {
+      function fadeOutElement(el, durationOverride = null) {
         if (!el) return
-        const duration = window.pedal_held ? 5e3 : 200
+        const duration = durationOverride ?? (window.pedal_held ? 5e3 : 200)
         el.style.transition = `opacity ${duration}ms ease-out`
         el.style.opacity = 0
         setTimeout(() => el.remove(), duration)

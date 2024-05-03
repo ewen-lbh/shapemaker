@@ -332,7 +332,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         aspect_ratio: f32,
         resolution: usize,
     ) -> Result<(), String> {
-        Canvas::save_as_png(
+        Canvas::save_as(
             &format!(
                 "{}/{:0width$}.png",
                 frames_output_directory,

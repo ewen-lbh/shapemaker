@@ -4,6 +4,7 @@ use std::{cmp, collections::HashMap, io::Write, ops::Range};
 use chrono::DateTime;
 use itertools::Itertools;
 use rand::Rng;
+use svg::node::element::Pattern;
 
 use crate::{
     layer::Layer, objects::Object, random_color, web::console_log, Anchor, CenterAnchor, Color,
@@ -364,7 +365,7 @@ impl Canvas {
         self.remove_background()
     }
 
-    pub fn save_as_png(
+    pub fn save_as(
         at: &str,
         aspect_ratio: f32,
         resolution: usize,
@@ -377,6 +378,7 @@ impl Canvas {
             // portrait: resolution is height
             ((resolution as f32 / aspect_ratio) as usize, resolution)
         };
+
         let mut spawned = std::process::Command::new("magick")
             .args(["-background", "none"])
             .args(["-size", &format!("{}x{}", width, height)])
@@ -417,6 +419,20 @@ impl Canvas {
             .collect()
     }
 
+    fn unique_pattern_fills(&self) -> Vec<Fill> {
+        self.layers
+            .iter()
+            .flat_map(|layer| {
+                layer
+                    .objects
+                    .iter()
+                    .flat_map(|(_, o)| o.1.map(|fill| fill.clone()))
+            })
+            .filter(|fill| matches!(fill, Fill::Hatched(..)))
+            .unique_by(|fill| fill.pattern_id())
+            .collect()
+    }
+
     pub fn render(&mut self, layers: &Vec<&str>, render_background: bool) -> String {
         let background_color = self.background.unwrap_or_default();
         let mut svg = svg::Document::new();
@@ -427,7 +443,7 @@ impl Canvas {
                     .set("y", -(self.canvas_outter_padding as i32))
                     .set("width", self.width())
                     .set("height", self.height())
-                    .set("fill", background_color.to_string(&self.colormap)),
+                    .set("fill", background_color.render(&self.colormap)),
             );
         }
         for layer in self
@@ -439,22 +455,30 @@ impl Canvas {
             svg = svg.add(layer.render(self.colormap.clone(), self.cell_size, layer.object_sizes));
         }
 
+        let mut defs = svg::node::element::Definitions::new();
         for filter in self.unique_filters() {
-            svg = svg.add(filter.definition())
+            defs = defs.add(filter.definition())
         }
 
-        svg.set(
-            "viewBox",
-            format!(
-                "{0} {0} {1} {2}",
-                -(self.canvas_outter_padding as i32),
-                self.width(),
-                self.height()
-            ),
-        )
-        .set("width", self.width())
-        .set("height", self.height())
-        .to_string()
+        for pattern_fill in self.unique_pattern_fills() {
+            if let Some(patterndef) = pattern_fill.pattern_definition(&self.colormap) {
+                defs = defs.add(patterndef)
+            }
+        }
+
+        svg.add(defs)
+            .set(
+                "viewBox",
+                format!(
+                    "{0} {0} {1} {2}",
+                    -(self.canvas_outter_padding as i32),
+                    self.width(),
+                    self.height()
+                ),
+            )
+            .set("width", self.width())
+            .set("height", self.height())
+            .to_string()
     }
 }
 

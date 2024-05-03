@@ -6,8 +6,8 @@ use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen};
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
 use crate::{
-    layer, Anchor, Canvas, CenterAnchor, Color, ColorMapping, Fill, Filter, FilterType, Layer,
-    Object,
+    layer, Anchor, Canvas, CenterAnchor, Color, ColorMapping, Fill, Filter, FilterType,
+    HatchDirection, Layer, Object,
 };
 
 static WEB_CANVAS: Lazy<Mutex<Canvas>> = Lazy::new(|| Mutex::new(Canvas::default_settings()));
@@ -61,7 +61,12 @@ pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
     canvas.set_grid_size(4, 4);
 
     let mut layer = canvas.random_layer(&color.name());
-    layer.paint_all_objects(Fill::Translucent(color.into(), opacity));
+    layer.paint_all_objects(Fill::Hatched(
+        color.into(),
+        HatchDirection::BottomUpDiagonal,
+        opacity,
+        opacity,
+    ));
     // layer.filter_all_objects(Filter::glow(3.0));
     canvas.add_or_replace_layer(layer);
 

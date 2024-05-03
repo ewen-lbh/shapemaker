@@ -1,5 +1,6 @@
 use crate::{Anchor, CenterAnchor, ColorMapping, Coordinates, Fill, Filter, Point, Region};
 use itertools::Itertools;
+use svg::Node;
 use wasm_bindgen::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -170,8 +171,6 @@ impl Object {
             Object::RawSVG(..) => self.render_raw_svg(),
         };
 
-        group = group.add(rendered);
-
         let mut css = String::new();
         if !matches!(self, Object::RawSVG(..)) {
             css = fill.render_css(colormap, !self.fillable());
@@ -184,7 +183,7 @@ impl Object {
             .join(" ")
             .as_ref();
 
-        group.set("data-object", id).set("style", css)
+        group.set("data-object", id).add(rendered).set("style", css)
     }
 
     fn render_raw_svg(&self) -> Box<dyn svg::node::Node> {
@@ -215,10 +214,10 @@ impl Object {
         if let Object::Rectangle(start, end) = self {
             return Box::new(
                 svg::node::element::Rectangle::new()
-                    .set("x1", start.coords(cell_size).0)
-                    .set("y1", start.coords(cell_size).1)
-                    .set("x2", end.coords(cell_size).0)
-                    .set("y2", end.coords(cell_size).1),
+                    .set("x", start.coords(cell_size).0)
+                    .set("y", start.coords(cell_size).1)
+                    .set("width", start.distances(end).0 * cell_size)
+                    .set("height", start.distances(end).1 * cell_size),
             );
         }
 
