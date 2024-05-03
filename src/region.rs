@@ -7,6 +7,12 @@ use wasm_bindgen::prelude::*;
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Point(pub usize, pub usize);
 
+impl Point {
+    pub fn translated(&self, dx: i32, dy: i32) -> Self {
+        Self((self.0 as i32 + dx) as usize, (self.1 as i32 + dy) as usize)
+    }
+}
+
 impl From<(usize, usize)> for Point {
     fn from(value: (usize, usize)) -> Self {
         Self(value.0, value.1)
@@ -40,6 +46,16 @@ impl Region {
     pub fn random_point_within(&self) -> Point {
         Point::from(self.random_coordinates_within())
     }
+
+    pub fn random_point_within_except(&self, except: &Region) -> Point {
+        // XXX this is probably not a good idea lmao
+        loop {
+            let point = self.random_point_within();
+            if !except.contains(&point) {
+                return point;
+            }
+        }
+    }
 }
 
 pub struct RegionIterator {
@@ -69,6 +85,24 @@ impl From<&Region> for RegionIterator {
         Self {
             region: region.clone(),
             current: region.start.clone(),
+        }
+    }
+}
+
+impl From<(&Point, &Point)> for Region {
+    fn from(value: (&Point, &Point)) -> Self {
+        Self {
+            start: value.0.clone(),
+            end: value.1.clone(),
+        }
+    }
+}
+
+impl From<(Point, Point)> for Region {
+    fn from(value: (Point, Point)) -> Self {
+        Self {
+            start: value.0,
+            end: value.1,
         }
     }
 }
@@ -113,7 +147,7 @@ impl std::ops::Sub for Region {
 
 #[test]
 fn test_sub_and_transate_coherence() {
-    let a = Region::from_origin((3, 3));
+    let a = Region::from_origin(Point(3, 3));
     let mut b = a.clone();
     b.translate(2, 3);
 
@@ -128,6 +162,22 @@ impl Region {
         };
         region.ensure_valid();
         region
+    }
+
+    pub fn bottomleft(&self) -> Point {
+        Point(self.start.0, self.end.1)
+    }
+
+    pub fn bottomright(&self) -> Point {
+        Point(self.end.0, self.end.1)
+    }
+
+    pub fn topleft(&self) -> Point {
+        Point(self.start.0, self.start.1)
+    }
+
+    pub fn topright(&self) -> Point {
+        Point(self.end.0, self.start.1)
     }
 
     pub fn max<'a>(&'a self, other: &'a Region) -> &'a Region {
@@ -145,11 +195,11 @@ impl Region {
         )
     }
 
-    pub fn from_origin(end: (usize, usize)) -> Self {
+    pub fn from_origin(end: Point) -> Self {
         Self::new(0, 0, end.0, end.1)
     }
 
-    pub fn from_origin_and_size(origin: (usize, usize), size: (usize, usize)) -> Self {
+    pub fn from_topleft(origin: Point, size: (usize, usize)) -> Self {
         Self::new(
             origin.0,
             origin.1,
@@ -158,7 +208,29 @@ impl Region {
         )
     }
 
-    pub fn from_center_and_size(center: (usize, usize), size: (usize, usize)) -> Self {
+    pub fn from_bottomleft(origin: Point, size: (usize, usize)) -> Self {
+        Self::new(origin.0, origin.1 - size.1, origin.0 + size.0, origin.1)
+    }
+
+    pub fn from_bottomright(origin: Point, size: (usize, usize)) -> Self {
+        Self::new(
+            origin.0 - size.0,
+            origin.1 - size.1,
+            origin.0 + 1,
+            origin.1 + 1,
+        )
+    }
+
+    pub fn from_topright(origin: Point, size: (usize, usize)) -> Self {
+        Self::new(
+            origin.0 - size.0,
+            origin.1,
+            origin.0 + 1,
+            origin.1 + size.1 + 1,
+        )
+    }
+
+    pub fn from_center_and_size(center: Point, size: (usize, usize)) -> Self {
         let half_size = (size.0 / 2, size.1 / 2);
         Self::new(
             center.0 - half_size.0,
@@ -217,19 +289,19 @@ impl Region {
         self.translated(-dx, -dy).enlarged(dx, dy)
     }
 
-    pub fn x_range(&self) -> std::ops::Range<usize> {
-        self.start.0..self.end.0
+    pub fn x_range(&self) -> std::ops::RangeInclusive<usize> {
+        self.start.0..=self.end.0
     }
-    pub fn y_range(&self) -> std::ops::Range<usize> {
-        self.start.1..self.end.1
+    pub fn y_range(&self) -> std::ops::RangeInclusive<usize> {
+        self.start.1..=self.end.1
     }
 
     pub fn x_range_without_last(&self) -> std::ops::Range<usize> {
-        self.start.0..self.end.0 - 1
+        self.start.0..self.end.0
     }
 
     pub fn y_range_without_last(&self) -> std::ops::Range<usize> {
-        self.start.1..self.end.1 - 1
+        self.start.1..self.end.1
     }
 
     pub fn within(&self, other: &Region) -> bool {
@@ -268,9 +340,22 @@ impl Region {
         let h = self.height() as i32;
         -h..=h
     }
+}
 
-    pub fn contains(&self, anchor: &Anchor) -> bool {
-        self.x_range().contains(&(anchor.0 as usize))
-            && self.y_range().contains(&(anchor.1 as usize))
+pub trait Containable<T> {
+    fn contains(&self, value: &T) -> bool;
+}
+
+impl Containable<Point> for Region {
+    fn contains(&self, value: &Point) -> bool {
+        self.x_range_without_last().contains(&value.0)
+            && self.y_range_without_last().contains(&value.1)
+    }
+}
+
+impl Containable<Anchor> for Region {
+    fn contains(&self, anchor: &Anchor) -> bool {
+        self.x_range_without_last().contains(&(anchor.0 as usize))
+            && self.y_range_without_last().contains(&(anchor.1 as usize))
     }
 }

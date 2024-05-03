@@ -1,4 +1,5 @@
 mod color;
+pub mod examples;
 pub mod cli;
 mod objects;
 pub use color::*;

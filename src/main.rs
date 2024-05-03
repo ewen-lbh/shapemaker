@@ -13,63 +13,19 @@ pub fn run(args: cli::Args) {
     let mut canvas = canvas_from_cli(&args);
 
     if args.cmd_image && !args.cmd_video {
-        let mut layer = Layer::new("root");
-
-        let red_circle_at = canvas.world_region.enlarged(-1, -1).random_point_within();
-
-        for (i, Point(x, y)) in canvas
-            .world_region
-            .resized(-1, -1)
-            .enlarged(-2, -2)
-            .iter()
-            .enumerate()
-        {
-            layer.add_object(
-                &format!("{}-{}", x, y),
-                if rand::thread_rng().gen_bool(0.5) && red_circle_at != Point(x, y) {
-                    Object::BigCircle((x, y).into())
-                } else {
-                    Object::Rectangle((x, y).into(), Anchor::from((x, y)).translated(1, 1))
-                }
-                .color(if red_circle_at == Point(x, y) {
-                    Fill::Solid(Color::Red)
-                } else {
-                    Fill::Hatched(
-                        Color::White,
-                        HatchDirection::BottomUpDiagonal,
-                        (i + 1) as f32 / 10.0,
-                        0.25,
-                    )
-                }),
-                // .filter(Filter::glow(7.0)),
-            );
-        }
-        canvas.layers.push(layer);
-        canvas.set_background(Color::Black);
-        // canvas.layer("root").add_object(
-        //     "feur",
-        //     Object::Rectangle(Anchor(0, 0), Anchor(2, 2)),
-        //     Some(Fill::Hatched(
-        //         Color::Red,
-        //         HatchDirection::BottomUpDiagonal,
-        //         2.0,
-        //         0.25,
-        //     )),
-        // );
-        // canvas.layers[0].paint_all_objects(Fill::Hatched(
-        //     Color::Red,
-        //     HatchDirection::BottomUpDiagonal,
-        //     3.0,
-        // ));
-        let aspect_ratio = canvas.grid_size.0 as f32 / canvas.grid_size.1 as f32;
-
+        canvas.root().add_object(
+            "hello",
+            Object::Text(Anchor(3, 4), "hello world!".into(), 16.0)
+                .color(Fill::Solid(Color::Black)),
+        );
+        canvas.set_background(Color::White);
         let rendered = canvas.render(&vec!["*"], true);
         if args.arg_file.ends_with(".svg") {
             std::fs::write(args.arg_file, rendered).unwrap();
         } else {
             match Canvas::save_as(
                 &args.arg_file,
-                aspect_ratio,
+                canvas.aspect_ratio(),
                 args.flag_resolution.unwrap_or(1000),
                 rendered,
             ) {
@@ -88,7 +44,7 @@ pub fn run(args: cli::Args) {
     video = video
         .init(&|canvas: _, context: _| {
             context.extra = State {
-                bass_pattern_at: Region::from_origin_and_size((6, 3), (3, 3)),
+                bass_pattern_at: Region::from_topleft(Point(6, 3), (3, 3)),
                 first_kick_happened: false,
             };
             canvas.set_background(Color::Black);
@@ -299,7 +255,7 @@ fn region_cycle(world: &Region, current: Option<&Region>) -> Region {
     let mut region = if let Some(current) = current {
         current.clone()
     } else {
-        Region::from_origin_and_size((1, 1), (2, 2))
+        Region::from_topleft(Point(1, 1), (2, 2))
     };
 
     let size = (region.width(), region.height());
@@ -313,7 +269,7 @@ fn region_cycle(world: &Region, current: Option<&Region>) -> Region {
     }
     // Else go to origin
     else {
-        region = Region::from_origin_and_size((1, 1), size)
+        region = Region::from_topleft(Point(1, 1), size)
     }
     region
 }

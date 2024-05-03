@@ -1,5 +1,7 @@
 use wasm_bindgen::prelude::wasm_bindgen;
 
+use crate::Point;
+
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Anchor(pub i32, pub i32);
@@ -87,5 +89,11 @@ impl Coordinates for CenterAnchor {
 
     fn center() -> Self {
         CenterAnchor(-1, -1)
+    }
+}
+
+impl From<Point> for CenterAnchor {
+    fn from(value: Point) -> Self {
+        CenterAnchor(value.0 as i32, value.1 as i32)
     }
 }

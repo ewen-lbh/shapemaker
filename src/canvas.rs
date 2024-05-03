@@ -8,8 +8,8 @@ use svg::node::element::Pattern;
 
 use crate::{
     layer::Layer, objects::Object, random_color, web::console_log, Anchor, CenterAnchor, Color,
-    ColorMapping, ColoredObject, Fill, Filter, HatchDirection, LineSegment, ObjectSizes, Point,
-    Region,
+    ColorMapping, ColoredObject, Containable, Fill, Filter, HatchDirection, LineSegment,
+    ObjectSizes, Point, Region,
 };
 
 #[derive(Debug, Clone)]
@@ -197,10 +197,14 @@ impl Canvas {
         self.random_linelikes_within(layer_name, &self.world_region)
     }
 
-    pub fn random_linelikes_within(&self, layer_name: &str, region: &Region) -> Layer {
+    pub fn n_random_linelikes_within(
+        &self,
+        layer_name: &str,
+        region: &Region,
+        count: usize,
+    ) -> Layer {
         let mut objects: HashMap<String, ColoredObject> = HashMap::new();
-        let number_of_objects = rand::thread_rng().gen_range(self.objects_count_range.clone());
-        for i in 0..number_of_objects {
+        for i in 0..count {
             let object = self.random_linelike_within(region);
             let hatchable = object.fillable();
             objects.insert(
@@ -222,6 +226,11 @@ impl Canvas {
             objects,
             _render_cache: None,
         }
+    }
+
+    pub fn random_linelikes_within(&self, layer_name: &str, region: &Region) -> Layer {
+        let number_of_objects = rand::thread_rng().gen_range(self.objects_count_range.clone());
+        self.n_random_linelikes_within(layer_name, region, number_of_objects)
     }
 
     pub fn random_object_within(&self, region: &Region) -> Object {
@@ -424,6 +433,10 @@ impl Canvas {
 
     pub fn height(&self) -> usize {
         self.cell_size * (self.grid_size.1 - 1) + 2 * self.canvas_outter_padding
+    }
+
+    pub fn aspect_ratio(&self) -> f32 {
+        return self.height() as f32 / self.width() as f32;
     }
 
     /// returns a list of all unique filters used throughout the canvas

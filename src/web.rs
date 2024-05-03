@@ -7,7 +7,7 @@ use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen};
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
 use crate::{
-    layer, Anchor, Canvas, CenterAnchor, Color, ColorMapping, Fill, Filter, FilterType,
+    examples, layer, Anchor, Canvas, CenterAnchor, Color, ColorMapping, Fill, Filter, FilterType,
     HatchDirection, Layer, Object, Point,
 };
 
@@ -43,7 +43,7 @@ pub(crate) use console_log;
 
 #[wasm_bindgen]
 pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
-    let mut canvas = Canvas::default_settings();
+    let mut canvas = examples::dna_analysis_machine();
     canvas.colormap = ColorMapping {
         black: "#ffffff".into(),
         white: "#ffffff".into(),
@@ -58,40 +58,7 @@ pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
         gray: "#81a0a8".into(),
         cyan: "#4fecec".into(),
     };
-    canvas.set_grid_size(16, 9);
 
-    let mut layer = Layer::new("root");
-
-    let draw_in = canvas.world_region.resized(-1, -1).enlarged(-2, -2);
-    let red_circle_at = draw_in.random_point_within();
-
-    console_log!("Red circle at {:?}", red_circle_at);
-
-    for (i, Point(x, y)) in draw_in.iter().enumerate() {
-        console_log!("Adding object at ({}, {})", x, y);
-        layer.add_object(
-            &format!("{}-{}", x, y),
-            if rand::thread_rng().gen_bool(0.5) && red_circle_at != Point(x, y) {
-                Object::BigCircle((x, y).into())
-            } else {
-                Object::Rectangle((x, y).into(), Anchor::from((x, y)).translated(1, 1))
-            }
-            .color(if red_circle_at == Point(x, y) {
-                Fill::Solid(Color::Red)
-            } else {
-                Fill::Hatched(
-                    Color::White,
-                    HatchDirection::BottomUpDiagonal,
-                    (i + 1) as f32 / 10.0,
-                    0.25,
-                )
-            }),
-            // .filter(Filter::glow(7.0)),
-        );
-    }
-    console_log!("Registering layer");
-    canvas.layers.push(layer);
-    canvas.set_background(Color::Black);
     *WEB_CANVAS.lock().unwrap() = canvas;
     render_canvas_at(String::from("body"));
 
