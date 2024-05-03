@@ -431,7 +431,6 @@ impl Canvas {
             svg = svg.add(layer.render(self.colormap.clone(), self.cell_size, layer.object_sizes));
         }
 
-        svg = svg.add(Filter::Glow.definition());
 
         svg.set(
             "viewBox",

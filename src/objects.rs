@@ -186,6 +186,11 @@ impl Object {
             .as_ref();
 
         group = group.set("data-object", id).set("style", css);
+
+        for f in filter {
+            group = group.add(f.definition().set("id", f.id()))
+        }
+
         group
     }
 
