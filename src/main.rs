@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use rand::Rng;
 use shapemaker::{
     cli::{canvas_from_cli, cli_args},
     *,
@@ -13,13 +12,7 @@ pub fn run(args: cli::Args) {
     let mut canvas = canvas_from_cli(&args);
 
     if args.cmd_image && !args.cmd_video {
-        // canvas.root().add_object(
-        //     "hello",
-        //     Object::Text(Anchor(3, 4), "hello world!".into(), 16.0)
-        //         .color(Fill::Solid(Color::Black)),
-        // );
-        // canvas.set_background(Color::White);
-        canvas = examples::dna_analysis_machine();
+        canvas = examples::title();
         let rendered = canvas.render(&vec!["*"], true);
         if args.arg_file.ends_with(".svg") {
             std::fs::write(args.arg_file, rendered).unwrap();
@@ -53,7 +46,7 @@ pub fn run(args: cli::Args) {
             let mut kicks = Layer::new("anchor kick");
 
             let fill = Fill::Translucent(Color::White, 0.0);
-            let circle_at = |x: usize, y: usize| Object::SmallCircle(Anchor(x as i32, y as i32));
+            let circle_at = |x: usize, y: usize| Object::SmallCircle(Point(x, y));
 
             let (end_x, end_y) = {
                 let Point(x, y) = canvas.world_region.end;
@@ -66,7 +59,7 @@ pub fn run(args: cli::Args) {
             canvas.add_or_replace_layer(kicks);
 
             let mut ch = Layer::new("ch");
-            ch.add_object("0", Object::Dot(Anchor(0, 0)).into());
+            ch.add_object("0", Object::Dot(Point(0, 0)).into());
             canvas.add_or_replace_layer(ch);
         })
         .sync_audio_with(&args.flag_sync_with.unwrap())

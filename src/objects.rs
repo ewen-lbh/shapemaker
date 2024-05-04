@@ -1,26 +1,27 @@
-use crate::{Anchor, CenterAnchor, ColorMapping, Coordinates, Fill, Filter, Point, Region};
+use crate::{ColorMapping, Fill, Filter, Point, Region};
 use itertools::Itertools;
-use svg::Node;
 use wasm_bindgen::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LineSegment {
-    Straight(Anchor),
-    InwardCurve(Anchor),
-    OutwardCurve(Anchor),
+    Straight(Point),
+    InwardCurve(Point),
+    OutwardCurve(Point),
 }
 
 #[derive(Debug, Clone)]
 pub enum Object {
-    Polygon(Anchor, Vec<LineSegment>),
-    Line(Anchor, Anchor, f32),
-    CurveOutward(Anchor, Anchor, f32),
-    CurveInward(Anchor, Anchor, f32),
-    SmallCircle(Anchor),
-    Dot(Anchor),
-    BigCircle(CenterAnchor),
-    Text(Anchor, String, f32),
-    Rectangle(Anchor, Anchor),
+    Polygon(Point, Vec<LineSegment>),
+    Line(Point, Point, f32),
+    CurveOutward(Point, Point, f32),
+    CurveInward(Point, Point, f32),
+    SmallCircle(Point),
+    Dot(Point),
+    BigCircle(Point),
+    Text(Point, String, f32),
+    CenteredText(Point, String, f32),
+    // FittedText(Region, String),
+    Rectangle(Point, Point),
     RawSVG(Box<dyn svg::Node>),
 }
 
@@ -45,6 +46,22 @@ impl ColoredObject {
 
     pub fn clear_filters(&mut self) {
         self.2.clear();
+    }
+}
+
+impl std::fmt::Display for ColoredObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let ColoredObject(obj, fill, filters) = self;
+        if fill.is_some() {
+            write!(f, "{:?} {:?}", fill.unwrap(), obj)?;
+        } else {
+            write!(f, "transparent {:?}", obj)?;
+        }
+
+        if !filters.is_empty() {
+            write!(f, " with filters {:?}", filters)?;
+        }
+        Ok(())
     }
 }
 
@@ -112,9 +129,10 @@ impl Object {
                 start.translate(dx, dy);
                 end.translate(dx, dy);
             }
-            Object::Text(anchor, _, _) | Object::Dot(anchor) | Object::SmallCircle(anchor) => {
-                anchor.translate(dx, dy)
-            }
+            Object::Text(anchor, _, _)
+            | Object::CenteredText(anchor, ..)
+            | Object::Dot(anchor)
+            | Object::SmallCircle(anchor) => anchor.translate(dx, dy),
             Object::BigCircle(center) => center.translate(dx, dy),
             Object::RawSVG(_) => {
                 unimplemented!()
@@ -156,10 +174,11 @@ impl Object {
             | Object::CurveInward(start, end, _)
             | Object::CurveOutward(start, end, _)
             | Object::Rectangle(start, end) => (start, end).into(),
-            Object::Text(anchor, _, _) | Object::Dot(anchor) | Object::SmallCircle(anchor) => {
-                (anchor, anchor).into()
-            }
-            Object::BigCircle(center) => Region::from((center, center)),
+            Object::Text(anchor, _, _)
+            | Object::CenteredText(anchor, ..)
+            | Object::Dot(anchor)
+            | Object::SmallCircle(anchor) => anchor.region(),
+            Object::BigCircle(center) => center.region(),
             Object::RawSVG(_) => {
                 unimplemented!()
             }
@@ -188,10 +207,10 @@ impl Object {
         fill: Option<Fill>,
         filter: &Vec<Filter>,
     ) -> svg::node::element::Group {
-        let mut group = svg::node::element::Group::new();
+        let group = svg::node::element::Group::new();
 
         let rendered = match self {
-            Object::Text(..) => self.render_text(cell_size),
+            Object::Text(..) | Object::CenteredText(..) => self.render_text(cell_size),
             Object::Rectangle(..) => self.render_rectangle(cell_size),
             Object::Polygon(..) => self.render_polygon(cell_size),
             Object::Line(..) => self.render_line(cell_size),
@@ -226,20 +245,58 @@ impl Object {
     }
 
     fn render_text(&self, cell_size: usize) -> Box<dyn svg::node::Node> {
-        if let Object::Text(position, content, font_size) = self {
-            return Box::new(
-                svg::node::element::Text::new(content.clone())
-                    .set("x", position.coords(cell_size).0)
-                    .set("y", position.coords(cell_size).1)
-                    .set("font-size", format!("{}pt", font_size))
-                    .set("font-family", "sans-serif")
+        if let Object::Text(position, content, font_size)
+        | Object::CenteredText(position, content, font_size) = self
+        {
+            let centered = matches!(self, Object::CenteredText(..));
+
+            let coords = if centered {
+                position.center_coords(cell_size)
+            } else {
+                position.coords(cell_size)
+            };
+
+            let mut node = svg::node::element::Text::new(content.clone())
+                .set("x", coords.0)
+                .set("y", coords.1)
+                .set("font-size", format!("{}pt", font_size))
+                .set("font-family", "Victor Mono");
+
+            if centered {
+                node = node
                     .set("text-anchor", "middle")
-                    .set("dominant-baseline", "middle"),
-            );
+                    // FIXME does not work with imagemagick
+                    .set("dominant-baseline", "middle");
+            } else {
+                // FIXME does not work with imagemagick
+                // see https://legacy.imagemagick.org/discourse-server/viewtopic.php?t=31540
+                node = node.set("dominant-baseline", "hanging")
+            }
+
+            return Box::new(node);
         }
 
         panic!("Expected Text, got {:?}", self);
     }
+
+    // fn render_fitted_text(&self, cell_size: usize) -> Box<dyn svg:node::Node> {
+    //     if let Object::FittedText(region, content) = self {
+    //         let (x, y) = region.start.coords(cell_size);
+    //         let width = region.width() * cell_size as f32;
+    //         let height = region.height() * cell_size as f32;
+
+    //         return Box::new(
+    //             svg::node::element::Text::new(content.clone())
+    //                 .set("x", x)
+    //                 .set("y", y)
+    //                 .set("")
+    //                 .set("font-size", format!("{}pt", 10.0))
+    //                 .set("font-family", "sans-serif"),
+    //         );
+    //     }
+
+    //     panic!("Expected FittedText, got {:?}", self);
+    // }
 
     fn render_rectangle(&self, cell_size: usize) -> Box<dyn svg::node::Node> {
         if let Object::Rectangle(start, end) = self {
@@ -390,11 +447,16 @@ impl Object {
     }
 
     fn render_big_circle(&self, cell_size: usize) -> Box<dyn svg::node::Node> {
-        if let Object::BigCircle(center) = self {
+        if let Object::BigCircle(topleft) = self {
+            let (cx, cy) = {
+                let (x, y) = topleft.coords(cell_size);
+                (x + cell_size as f32 / 2.0, y + cell_size as f32 / 2.0)
+            };
+
             return Box::new(
                 svg::node::element::Circle::new()
-                    .set("cx", center.coords(cell_size).0)
-                    .set("cy", center.coords(cell_size).1)
+                    .set("cx", cx)
+                    .set("cy", cy)
                     .set("r", cell_size / 2),
             );
         }

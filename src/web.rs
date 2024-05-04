@@ -1,14 +1,12 @@
-use std::ptr::NonNull;
 use std::sync::Mutex;
 
 use once_cell::sync::Lazy;
-use rand::Rng;
-use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen};
+use wasm_bindgen::{prelude::wasm_bindgen};
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
 use crate::{
-    examples, layer, Anchor, Canvas, CenterAnchor, Color, ColorMapping, Fill, Filter, FilterType,
-    HatchDirection, Layer, Object, Point, Region,
+    examples, Canvas, Color, ColorMapping, Fill, Filter, Layer,
+    Object, Point, Region,
 };
 
 static WEB_CANVAS: Lazy<Mutex<Canvas>> = Lazy::new(|| Mutex::new(Canvas::default_settings()));
@@ -39,11 +37,10 @@ macro_rules! console_log {
     ($($t:tt)*) => (crate::log(&format_args!($($t)*).to_string()))
 }
 
-pub(crate) use console_log;
 
 #[wasm_bindgen]
 pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
-    let mut canvas = examples::dna_analysis_machine();
+    let mut canvas = examples::title();
     canvas.colormap = ColorMapping {
         black: "#ffffff".into(),
         white: "#ffffff".into(),
@@ -59,9 +56,6 @@ pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
         cyan: "#4fecec".into(),
     };
 
-    canvas.remove_all_objects_in(&Region::from_topleft(Point(8, 2), (2, 2)));
-    canvas.remove_all_objects_in(&Point(11, 7).region());
-
     *WEB_CANVAS.lock().unwrap() = canvas;
     render_canvas_at(String::from("body"));
 
@@ -69,9 +63,7 @@ pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn map_to_midi_controller() {
-
-}
+pub fn map_to_midi_controller() {}
 
 #[wasm_bindgen]
 pub fn render_canvas_into(selector: String) -> () {
@@ -251,8 +243,8 @@ impl LayerWeb {
     pub fn new_line(
         &self,
         name: &str,
-        start: Anchor,
-        end: Anchor,
+        start: Point,
+        end: Point,
         thickness: f32,
         color: Color,
     ) -> () {
@@ -268,8 +260,8 @@ impl LayerWeb {
     pub fn new_curve_outward(
         &self,
         name: &str,
-        start: Anchor,
-        end: Anchor,
+        start: Point,
+        end: Point,
         thickness: f32,
         color: Color,
     ) -> () {
@@ -281,8 +273,8 @@ impl LayerWeb {
     pub fn new_curve_inward(
         &self,
         name: &str,
-        start: Anchor,
-        end: Anchor,
+        start: Point,
+        end: Point,
         thickness: f32,
         color: Color,
     ) -> () {
@@ -291,17 +283,17 @@ impl LayerWeb {
             Object::CurveInward(start, end, thickness).color(Fill::Solid(color)),
         )
     }
-    pub fn new_small_circle(&self, name: &str, center: Anchor, color: Color) -> () {
+    pub fn new_small_circle(&self, name: &str, center: Point, color: Color) -> () {
         canvas()
             .layer(name)
             .add_object(name, Object::SmallCircle(center).color(Fill::Solid(color)))
     }
-    pub fn new_dot(&self, name: &str, center: Anchor, color: Color) -> () {
+    pub fn new_dot(&self, name: &str, center: Point, color: Color) -> () {
         canvas()
             .layer(name)
             .add_object(name, Object::Dot(center).color(Fill::Solid(color)))
     }
-    pub fn new_big_circle(&self, name: &str, center: CenterAnchor, color: Color) -> () {
+    pub fn new_big_circle(&self, name: &str, center: Point, color: Color) -> () {
         canvas()
             .layer(name)
             .add_object(name, Object::BigCircle(center).color(Fill::Solid(color)))
@@ -309,7 +301,7 @@ impl LayerWeb {
     pub fn new_text(
         &self,
         name: &str,
-        anchor: Anchor,
+        anchor: Point,
         text: String,
         font_size: f32,
         color: Color,
@@ -322,8 +314,8 @@ impl LayerWeb {
     pub fn new_rectangle(
         &self,
         name: &str,
-        topleft: Anchor,
-        bottomright: Anchor,
+        topleft: Point,
+        bottomright: Point,
         color: Color,
     ) -> () {
         canvas().layer(name).add_object(

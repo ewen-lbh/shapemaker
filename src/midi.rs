@@ -253,22 +253,6 @@ fn load_notes<'a>(source: &PathBuf) -> (Now, HashMap<String, Vec<Note>>) {
 
     for (_ms, notes) in stem_notes.iter().sorted_by_key(|(ms, _)| *ms) {
         for (track_name, note) in notes {
-            // println!(
-            //     "{} {} {:?}",
-            //     {
-            //         let duration = chrono::Duration::milliseconds(*ms as i64);
-            //         format!(
-            //             "{}'{}.{}\"#{}",
-            //             duration.num_minutes(),
-            //             duration.num_seconds() % 60,
-            //             duration.num_milliseconds() % 1000,
-            //             note.tick,
-            //         )
-            //     },
-            //     track_name,
-            //     note
-            // );
-
             result
                 .entry(track_name.clone())
                 .or_default()

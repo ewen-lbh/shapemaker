@@ -1,15 +1,18 @@
 use core::panic;
-use std::{cmp, collections::HashMap, io::Write, ops::Range};
+use std::{
+    cmp,
+    collections::HashMap,
+    io::{empty, Write},
+    ops::Range,
+};
 
 use chrono::DateTime;
 use itertools::Itertools;
 use rand::Rng;
-use svg::node::element::Pattern;
 
 use crate::{
-    layer::Layer, objects::Object, random_color, web::console_log, Anchor, CenterAnchor, Color,
-    ColorMapping, ColoredObject, Containable, Fill, Filter, HatchDirection, LineSegment,
-    ObjectSizes, Point, Region,
+    layer::Layer, objects::Object, random_color, Color, ColorMapping, ColoredObject, Containable,
+    Fill, Filter, HatchDirection, LineSegment, ObjectSizes, Point, Region,
 };
 
 #[derive(Debug, Clone)]
@@ -55,7 +58,7 @@ impl Canvas {
         self.grid_size = (new_width, new_height);
         self.world_region = Region {
             start: Point(0, 0),
-            end: self.grid_size.into(),
+            end: Point::from(self.grid_size).translated(-1, -1),
         };
     }
 
@@ -67,11 +70,31 @@ impl Canvas {
         self.layer_safe(name).unwrap()
     }
 
+    pub fn new_layer(&mut self, name: &str) -> &mut Layer {
+        if self.layer_exists(name) {
+            panic!("Layer {} already exists", name);
+        }
+
+        self.layers.push(Layer::new(name));
+        self.layer(name)
+    }
+
+    pub fn layer_or_empty(&mut self, name: &str) -> &mut Layer {
+        if self.layer_exists(name) {
+            return self.layer(name);
+        }
+
+        self.new_layer(name)
+    }
+
+    pub fn layer_exists(&self, name: &str) -> bool {
+        self.layers.iter().any(|layer| layer.name == name)
+    }
+
     pub fn ensure_layer_exists(&self, name: &str) {
-        self.layers
-            .iter()
-            .find(|layer| layer.name == name)
-            .or_else(|| panic!("Layer {} does not exist", name));
+        if !self.layer_exists(name) {
+            panic!("Layer {} does not exist", name);
+        }
     }
 
     /// puts this layer on top, and the others below, without changing their order
@@ -113,9 +136,7 @@ impl Canvas {
         match self.layer_safe(layer) {
             None => Err(format!("Layer {} does not exist", layer)),
             Some(layer) => {
-                layer
-                    .objects
-                    .insert(name.to_string(), (object, fill).into());
+                layer.add_object(name, (object, fill).into());
                 Ok(())
             }
         }
@@ -234,10 +255,10 @@ impl Canvas {
     }
 
     pub fn random_object_within(&self, region: &Region) -> Object {
-        let start = self.random_anchor(region);
+        let start = self.random_point(region);
         match rand::thread_rng().gen_range(1..=7) {
             1 => self.random_polygon(region),
-            2 => Object::BigCircle(self.random_center_anchor(region)),
+            2 => Object::BigCircle(start),
             3 => Object::SmallCircle(start),
             4 => Object::Dot(start),
             5 => Object::CurveInward(
@@ -251,8 +272,8 @@ impl Canvas {
                 self.object_sizes.default_line_width,
             ),
             7 => Object::Line(
-                self.random_anchor(region),
-                self.random_anchor(region),
+                self.random_point(region),
+                self.random_point(region),
                 self.object_sizes.default_line_width,
             ),
             _ => unreachable!(),
@@ -260,7 +281,7 @@ impl Canvas {
     }
 
     pub fn random_linelike_within(&self, region: &Region) -> Object {
-        let start = self.random_anchor(region);
+        let start = self.random_point(region);
         match rand::thread_rng().gen_range(1..=3) {
             1 => Object::CurveInward(
                 start,
@@ -273,15 +294,15 @@ impl Canvas {
                 self.object_sizes.default_line_width,
             ),
             3 => Object::Line(
-                self.random_anchor(region),
-                self.random_anchor(region),
+                self.random_point(region),
+                self.random_point(region),
                 self.object_sizes.default_line_width,
             ),
             _ => unreachable!(),
         }
     }
 
-    pub fn random_end_anchor(&self, start: Anchor, region: &Region) -> Anchor {
+    pub fn random_end_anchor(&self, start: Point, region: &Region) -> Point {
         // End anchors are always a square diagonal from the start anchor (for now)
         // that means taking steps of the form n * (one of (1, 1), (1, -1), (-1, 1), (-1, -1))
         // Except that the end anchor needs to stay in the bounds of the shape.
@@ -289,16 +310,19 @@ impl Canvas {
         // Determine all possible end anchors that are in a square diagonal from the start anchor
         let mut possible_end_anchors = vec![];
 
-        for x in region.mirrored_width_range() {
-            for y in region.mirrored_height_range() {
-                let end_anchor = Anchor(start.0 + x, start.1 + y);
+        // shapes can end on the next cell, since that's where they end
+        let actual_region = region.enlarged(1, 1);
+
+        for x in actual_region.mirrored_width_range() {
+            for y in actual_region.mirrored_height_range() {
+                let end_anchor = start.translated(x, y);
 
                 if end_anchor == start {
                     continue;
                 }
 
                 // Check that the end anchor is in a square diagonal from the start anchor and that the end anchor is in bounds
-                if x.abs() == y.abs() && region.contains(&end_anchor) {
+                if x.abs() == y.abs() && actual_region.contains(&end_anchor) {
                     possible_end_anchors.push(end_anchor);
                 }
             }
@@ -310,16 +334,16 @@ impl Canvas {
 
     pub fn random_polygon(&self, region: &Region) -> Object {
         let number_of_anchors = rand::thread_rng().gen_range(self.polygon_vertices_range.clone());
-        let start = self.random_anchor(region);
+        let start = self.random_point(region);
         let mut lines: Vec<LineSegment> = vec![];
         for _ in 0..number_of_anchors {
-            let next_anchor = self.random_anchor(region);
+            let next_anchor = self.random_point(region);
             lines.push(self.random_line(next_anchor));
         }
         Object::Polygon(start, lines)
     }
 
-    pub fn random_line(&self, end: Anchor) -> LineSegment {
+    pub fn random_line(&self, end: Point) -> LineSegment {
         match rand::thread_rng().gen_range(1..=3) {
             1 => LineSegment::Straight(end),
             2 => LineSegment::InwardCurve(end),
@@ -332,34 +356,11 @@ impl Canvas {
         region.start == (0, 0) && region.end == self.grid_size
     }
 
-    pub fn random_anchor(&self, region: &Region) -> Anchor {
-        if self.region_is_whole_grid(region)
-            && rand::thread_rng().gen_bool(1.0 / (self.grid_size.0 * self.grid_size.1) as f64)
-        {
-            // small change of getting center (-1, -1) even when grid size would not permit it (e.g. 4x4)
-            Anchor(-1, -1)
-        } else {
-            Anchor(
-                rand::thread_rng().gen_range(region.x_range()) as i32,
-                rand::thread_rng().gen_range(region.y_range()) as i32,
-            )
-        }
-    }
-
-    pub fn random_center_anchor(&self, region: &Region) -> CenterAnchor {
-        if self.region_is_whole_grid(region)
-            && rand::thread_rng().gen_bool(
-                1.0 / ((self.grid_size.0 as i32 - 1) * (self.grid_size.1 as i32 - 1)) as f64,
-            )
-        {
-            // small change of getting center (-1, -1) even when grid size would not permit it (e.g. 3x3)
-            CenterAnchor(-1, -1)
-        } else {
-            CenterAnchor(
-                rand::thread_rng().gen_range(region.x_range_without_last()) as i32,
-                rand::thread_rng().gen_range(region.y_range_without_last()) as i32,
-            )
-        }
+    pub fn random_point(&self, region: &Region) -> Point {
+        Point(
+            rand::thread_rng().gen_range(region.x_range()),
+            rand::thread_rng().gen_range(region.y_range()),
+        )
     }
 
     pub fn random_fill(&self, hatchable: bool) -> Fill {
@@ -428,11 +429,11 @@ impl Canvas {
 
 impl Canvas {
     pub fn width(&self) -> usize {
-        self.cell_size * (self.grid_size.0 - 1) + 2 * self.canvas_outter_padding
+        self.cell_size * self.world_region.width() + 2 * self.canvas_outter_padding
     }
 
     pub fn height(&self) -> usize {
-        self.cell_size * (self.grid_size.1 - 1) + 2 * self.canvas_outter_padding
+        self.cell_size * self.world_region.height() + 2 * self.canvas_outter_padding
     }
 
     pub fn aspect_ratio(&self) -> f32 {
@@ -468,6 +469,31 @@ impl Canvas {
             .filter(|fill| matches!(fill, Fill::Hatched(..)))
             .unique_by(|fill| fill.pattern_id())
             .collect()
+    }
+
+    pub fn debug_region(&mut self, region: &Region, color: Color) {
+        let layer = self.layer_or_empty("debug plane");
+
+        layer.add_object(
+            format!("{}_corner_ss", region).as_str(),
+            Object::Dot(region.topleft()).color(Fill::Solid(color)),
+        );
+        layer.add_object(
+            format!("{}_corner_se", region).as_str(),
+            Object::Dot(region.topright().translated(1, 0)).color(Fill::Solid(color)),
+        );
+        layer.add_object(
+            format!("{}_corner_ne", region).as_str(),
+            Object::Dot(region.bottomright().translated(1, 1)).color(Fill::Solid(color)),
+        );
+        layer.add_object(
+            format!("{}_corner_nw", region).as_str(),
+            Object::Dot(region.bottomleft().translated(0, 1)).color(Fill::Solid(color)),
+        );
+        layer.add_object(
+            format!("{}_region", region).as_str(),
+            Object::Rectangle(region.start, region.end).color(Fill::Translucent(color, 0.25)),
+        )
     }
 
     pub fn render(&mut self, layers: &Vec<&str>, render_background: bool) -> String {

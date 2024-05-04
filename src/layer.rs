@@ -1,8 +1,5 @@
-use crate::{ColorMapping, ColoredObject, Containable, Fill, Filter, Object, ObjectSizes, Region};
-use anyhow::Context;
+use crate::{ColorMapping, ColoredObject, Fill, Filter, ObjectSizes, Region};
 use std::collections::HashMap;
-use wasm_bindgen::prelude::*;
-use web_sys::js_sys::RegExp;
 
 #[derive(Debug, Clone, Default)]
 // #[wasm_bindgen(getter_with_clone)]
@@ -64,6 +61,10 @@ impl Layer {
     }
 
     pub fn add_object(&mut self, name: &str, object: ColoredObject) {
+        if self.objects.contains_key(name) {
+            panic!("object {} already exists in layer {}", name, self.name);
+        }
+
         self.objects.insert(name.to_string(), object);
         self.flush();
     }
