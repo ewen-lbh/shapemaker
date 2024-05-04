@@ -14,3 +14,4 @@ fixtures/
 !fixtures/schedule-hell*
 *.exe
 preview.html
+out.png
