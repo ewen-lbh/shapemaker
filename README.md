@@ -1,9 +1,16 @@
 ![shapemaker](title.png)
 
+<center>
+<p style="text-align: center;" align="center">
+    <em><a href="https://github.com/ewen-lbh/shapemaker/blob/e7ff660d42f4fc3cb29e1246ee82cbdd2f27c5ab/src/examples.rs#L114">See the code that generated this image</a></em>
+</p>
+</center>
+
+* * *
+
 An experiment into the generation of 2D flat design abstract artwork using limited shape and color combinations, arranged in a 8-point grid.
 
 [![wakatime](https://wakatime.com/badge/github/ewen-lbh/shapemaker.svg)](https://wakatime.com/badge/github/ewen-lbh/shapemaker)
-
 
 ## Gallery
 
@@ -53,7 +60,5 @@ An experiment into the generation of 2D flat design abstract artwork using limit
 
 **Weaving**
 ![Weaving](gallery/weaving.svg)
-
-
 
 </div>
