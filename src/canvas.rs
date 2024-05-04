@@ -1,13 +1,7 @@
 use core::panic;
-use std::{
-    cmp,
-    collections::HashMap,
-    io::{empty, Write},
-    ops::Range,
-};
+use std::{cmp, collections::HashMap, io::Write as _, ops::Range};
 
-use chrono::DateTime;
-use itertools::Itertools;
+use itertools::Itertools as _;
 use rand::Rng;
 
 use crate::{
@@ -446,7 +440,6 @@ impl Canvas {
 
         let stdin = spawned.stdin.as_mut().unwrap();
         stdin.write_all(rendered.as_bytes()).unwrap();
-        drop(stdin);
 
         match spawned.wait_with_output() {
             Ok(_) => Ok(()),
@@ -571,13 +564,4 @@ impl Canvas {
             .set("height", self.height())
             .to_string()
     }
-}
-
-pub fn milliseconds_to_timestamp(ms: usize) -> String {
-    format!(
-        "{}",
-        DateTime::from_timestamp_millis(ms as i64)
-            .unwrap()
-            .format("%H:%M:%S%.3f")
-    )
 }

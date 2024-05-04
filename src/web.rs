@@ -6,7 +6,7 @@ use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
 use crate::{
     examples, Canvas, Color, ColorMapping, Fill, Filter, Layer,
-    Object, Point, Region,
+    Object, Point,
 };
 
 static WEB_CANVAS: Lazy<Mutex<Canvas>> = Lazy::new(|| Mutex::new(Canvas::default_settings()));
