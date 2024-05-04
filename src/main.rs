@@ -52,14 +52,14 @@ pub fn run(args: cli::Args) {
                 let Point(x, y) = canvas.world_region.end;
                 (x - 2, y - 2)
             };
-            kicks.add_object("top left", circle_at(1, 1).color(fill));
-            kicks.add_object("top right", circle_at(end_x, 1).color(fill));
-            kicks.add_object("bottom left", circle_at(1, end_y).color(fill));
-            kicks.add_object("bottom right", circle_at(end_x, end_y).color(fill));
+            kicks.set_object("top left", circle_at(1, 1).color(fill));
+            kicks.set_object("top right", circle_at(end_x, 1).color(fill));
+            kicks.set_object("bottom left", circle_at(1, end_y).color(fill));
+            kicks.set_object("bottom right", circle_at(end_x, end_y).color(fill));
             canvas.add_or_replace_layer(kicks);
 
             let mut ch = Layer::new("ch");
-            ch.add_object("0", Object::Dot(Point(0, 0)).into());
+            ch.set_object("0", Object::Dot(Point(0, 0)).into());
             canvas.add_or_replace_layer(ch);
         })
         .sync_audio_with(&args.flag_sync_with.unwrap())
@@ -71,7 +71,13 @@ pub fn run(args: cli::Args) {
 
             canvas.layer("anchor kick").flush();
 
-            ctx.later_ms(200, &fade_out_kick_circles)
+            // ctx.later_ms(200, &fade_out_kick_circles)
+            ctx.animate(200, &|t, canvas, _| {
+                canvas
+                    .layer("anchor kick")
+                    .paint_all_objects(Fill::Translucent(Color::White, 1.0 - t));
+                canvas.layer("anchor kick").flush();
+            });
         })
         .on_note("bass", &|canvas, ctx| {
             let mut new_layer = canvas.random_layer_within("bass", &ctx.extra.bass_pattern_at);
@@ -140,7 +146,7 @@ pub fn run(args: cli::Args) {
             layer.objects.retain(|name, _| dots_to_keep.contains(name));
 
             let object_name = format!("{}", ctx.ms);
-            layer.add_object(
+            layer.set_object(
                 &object_name,
                 Object::Dot(world.resized(-1, -1).random_coordinates_within().into())
                     .color(Fill::Solid(Color::Cyan)),
@@ -150,7 +156,7 @@ pub fn run(args: cli::Args) {
             canvas.layer("ch").flush();
         })
         .when_remaining(10, &|canvas, _| {
-            canvas.root().add_object(
+            canvas.root().set_object(
                 "credits text",
                 Object::RawSVG(Box::new(svg::node::Text::new("by ewen-lbh"))).into(),
             );
@@ -167,7 +173,7 @@ pub fn run(args: cli::Args) {
     }
 }
 
-fn fade_out_kick_circles(canvas: &mut Canvas) {
+fn fade_out_kick_circles(canvas: &mut Canvas, _: usize) {
     canvas
         .layer("anchor kick")
         .paint_all_objects(Fill::Translucent(Color::White, 0.0));

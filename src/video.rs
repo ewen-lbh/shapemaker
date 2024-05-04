@@ -22,7 +22,8 @@ pub type CommandAction<C> = dyn Fn(String, &mut Canvas, &mut Context<C>);
 /// Arguments: canvas, context, previous rendered beat, previous rendered frame
 pub type HookCondition<C> = dyn Fn(&Canvas, &Context<C>, usize, usize) -> bool;
 
-pub type LaterRenderFunction = dyn Fn(&mut Canvas);
+/// Arguments: canvas, context, current milliseconds timestamp
+pub type LaterRenderFunction = dyn Fn(&mut Canvas, usize);
 
 /// Arguments: canvas, context, previous rendered beat
 pub type LaterHookCondition<C> = dyn Fn(&Canvas, &Context<C>, usize) -> bool;
@@ -49,6 +50,8 @@ pub struct Hook<C> {
 pub struct LaterHook<C> {
     pub when: Box<LaterHookCondition<C>>,
     pub render_function: Box<LaterRenderFunction>,
+    /// Whether the hook should be run only once
+    pub once: bool,
 }
 
 impl<C> std::fmt::Debug for Hook<C> {
@@ -561,7 +564,11 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
 
             for (i, hook) in context.later_hooks.iter().enumerate() {
                 if (hook.when)(&canvas, &context, previous_rendered_beat) {
-                    (hook.render_function)(&mut canvas);
+                    (hook.render_function)(&mut canvas, context.ms);
+                    if hook.once {
+                        later_hooks_to_delete.push(i);
+                    }
+                } else if !hook.once {
                     later_hooks_to_delete.push(i);
                 }
             }

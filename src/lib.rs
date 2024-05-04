@@ -1,39 +1,44 @@
+pub mod animation;
+pub mod audio;
+pub mod canvas;
 pub mod cli;
-pub mod video;
-pub use video::*;
-mod color;
+pub mod color;
 pub mod examples;
-mod objects;
-pub use color::*;
-pub use objects::*;
-mod fill;
-mod point;
-pub use fill::*;
-pub use point::*;
-mod region;
-pub use region::*;
-mod web;
-pub use web::log;
-mod audio;
+pub mod fill;
+pub mod filter;
+pub mod layer;
+pub mod midi;
+pub mod objects;
+pub mod point;
+pub mod preview;
+pub mod region;
+pub mod sync;
+pub mod video;
+pub mod web;
+pub use animation::*;
 pub use audio::*;
-mod sync;
-use sync::SyncData;
-pub use sync::Syncable;
-mod layer;
-pub use layer::*;
-mod canvas;
 pub use canvas::*;
-mod filter;
+pub use color::*;
+pub use fill::*;
 pub use filter::*;
-mod midi;
-mod preview;
-use indicatif::{ProgressBar, ProgressStyle};
+pub use layer::*;
 pub use midi::MidiSynchronizer;
+pub use objects::*;
+pub use point::*;
+pub use region::*;
+pub use sync::Syncable;
+pub use video::*;
+pub use web::log;
+
+use indicatif::{ProgressBar, ProgressStyle};
+use nanoid::nanoid;
 use std::fs::{self};
-use std::path::{PathBuf};
+use std::ops::{Add, Div, Range, Sub};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time;
+use sync::SyncData;
 
 const PROGRESS_BARS_STYLE: &str =
     "{spinner:.cyan} {percent:03.bold.cyan}% {msg:<30} [{bar:100.bold.blue/dim.blue}] {eta:.cyan}";
@@ -119,6 +124,7 @@ impl<'a, C> Context<'a, C> {
         self.later_hooks.insert(
             0,
             LaterHook {
+                once: true,
                 when: Box::new(move |_, context, _previous_beat| {
                     context.frame >= current_frame + delay
                 }),
@@ -133,6 +139,7 @@ impl<'a, C> Context<'a, C> {
         self.later_hooks.insert(
             0,
             LaterHook {
+                once: true,
                 when: Box::new(move |_, context, _previous_beat| context.ms >= current_ms + delay),
                 render_function: Box::new(render_function),
             },
@@ -145,11 +152,35 @@ impl<'a, C> Context<'a, C> {
         self.later_hooks.insert(
             0,
             LaterHook {
+                once: true,
                 when: Box::new(move |_, context, _previous_beat| {
                     context.beat_fractional >= current_beat as f32 + delay
                 }),
                 render_function: Box::new(render_function),
             },
+        );
+    }
+
+    /// duration is in milliseconds
+    pub fn start_animation(&mut self, duration: usize, animation: Animation) {
+        let start_ms = self.ms;
+        let ms_range = start_ms..(start_ms + duration);
+
+        self.later_hooks.push(LaterHook {
+            once: false,
+            when: Box::new(move |_, ctx, _| ms_range.contains(&ctx.ms)),
+            render_function: Box::new(move |canvas, ms| {
+                let t = (ms - start_ms) as f32 / duration as f32;
+                (animation.update)(t, canvas, ms)
+            }),
+        })
+    }
+
+    /// duration is in milliseconds
+    pub fn animate(&mut self, duration: usize, f: &'static AnimationUpdateFunction) {
+        self.start_animation(
+            duration,
+            Animation::new(format!("unnamed animation {}", nanoid!()), f),
         );
     }
 }
@@ -190,6 +221,5 @@ impl SpinState {
         println!("{}", message);
     }
 }
-
 
 fn main() {}

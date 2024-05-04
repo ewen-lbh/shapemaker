@@ -67,6 +67,12 @@ impl Layer {
             panic!("object {} already exists in layer {}", name_str, self.name);
         }
 
+        self.set_object(name_str, object);
+    }
+
+    pub fn set_object<'a, N: Display>(&mut self, name: N, object: ColoredObject) {
+        let name_str = format!("{}", name);
+
         self.objects.insert(name_str, object);
         self.flush();
     }
