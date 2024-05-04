@@ -439,6 +439,12 @@ impl Canvas {
         return self.height() as f32 / self.width() as f32;
     }
 
+    pub fn remove_all_objects_in(&mut self, region: &Region) {
+        self.layers
+            .iter_mut()
+            .for_each(|layer| layer.remove_all_objects_in(region));
+    }
+
     /// returns a list of all unique filters used throughout the canvas
     /// used to only generate one definition per filter
     ///

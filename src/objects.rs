@@ -159,7 +159,7 @@ impl Object {
             Object::Text(anchor, _, _) | Object::Dot(anchor) | Object::SmallCircle(anchor) => {
                 (anchor, anchor).into()
             }
-            Object::BigCircle(center) => (center, center).into(), // FIXME will be wrong lmao,
+            Object::BigCircle(center) => Region::from((center, center)),
             Object::RawSVG(_) => {
                 unimplemented!()
             }

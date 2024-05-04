@@ -8,7 +8,7 @@ use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
 use crate::{
     examples, layer, Anchor, Canvas, CenterAnchor, Color, ColorMapping, Fill, Filter, FilterType,
-    HatchDirection, Layer, Object, Point,
+    HatchDirection, Layer, Object, Point, Region,
 };
 
 static WEB_CANVAS: Lazy<Mutex<Canvas>> = Lazy::new(|| Mutex::new(Canvas::default_settings()));
@@ -59,10 +59,18 @@ pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
         cyan: "#4fecec".into(),
     };
 
+    canvas.remove_all_objects_in(&Region::from_topleft(Point(8, 2), (2, 2)));
+    canvas.remove_all_objects_in(&Point(11, 7).region());
+
     *WEB_CANVAS.lock().unwrap() = canvas;
     render_canvas_at(String::from("body"));
 
     Ok(())
+}
+
+#[wasm_bindgen]
+pub fn map_to_midi_controller() {
+
 }
 
 #[wasm_bindgen]

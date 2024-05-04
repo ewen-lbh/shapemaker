@@ -1,7 +1,8 @@
-use crate::{ColorMapping, ColoredObject, Fill, Filter, Object, ObjectSizes};
+use crate::{ColorMapping, ColoredObject, Containable, Fill, Filter, Object, ObjectSizes, Region};
 use anyhow::Context;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
+use web_sys::js_sys::RegExp;
 
 #[derive(Debug, Clone, Default)]
 // #[wasm_bindgen(getter_with_clone)]
@@ -34,6 +35,11 @@ impl Layer {
     pub fn replace(&mut self, with: Layer) -> () {
         self.objects = with.objects.clone();
         self.flush();
+    }
+
+    pub fn remove_all_objects_in(&mut self, region: &Region) {
+        self.objects
+            .retain(|_, ColoredObject(o, ..)| !o.region().within(region))
     }
 
     pub fn paint_all_objects(&mut self, fill: Fill) {

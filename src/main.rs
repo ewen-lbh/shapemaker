@@ -13,12 +13,13 @@ pub fn run(args: cli::Args) {
     let mut canvas = canvas_from_cli(&args);
 
     if args.cmd_image && !args.cmd_video {
-        canvas.root().add_object(
-            "hello",
-            Object::Text(Anchor(3, 4), "hello world!".into(), 16.0)
-                .color(Fill::Solid(Color::Black)),
-        );
-        canvas.set_background(Color::White);
+        // canvas.root().add_object(
+        //     "hello",
+        //     Object::Text(Anchor(3, 4), "hello world!".into(), 16.0)
+        //         .color(Fill::Solid(Color::Black)),
+        // );
+        // canvas.set_background(Color::White);
+        canvas = examples::dna_analysis_machine();
         let rendered = canvas.render(&vec!["*"], true);
         if args.arg_file.ends_with(".svg") {
             std::fs::write(args.arg_file, rendered).unwrap();

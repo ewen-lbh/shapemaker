@@ -11,6 +11,13 @@ impl Point {
     pub fn translated(&self, dx: i32, dy: i32) -> Self {
         Self((self.0 as i32 + dx) as usize, (self.1 as i32 + dy) as usize)
     }
+
+    pub fn region(&self) -> Region {
+        Region {
+            start: self.clone(),
+            end: self.clone(),
+        }
+    }
 }
 
 impl From<(usize, usize)> for Point {
@@ -129,7 +136,7 @@ impl From<(&CenterAnchor, &CenterAnchor)> for Region {
     fn from(value: (&CenterAnchor, &CenterAnchor)) -> Self {
         Region {
             start: (value.0 .0, value.0 .1).into(),
-            end: (value.1 .0, value.1 .1).into(),
+            end: (value.1 .0 - 1, value.1 .1 - 1).into(),
         }
     }
 }
