@@ -15,6 +15,14 @@ impl Region {
         self.into()
     }
 
+    pub fn iter_lower_triangle(&self) -> impl Iterator<Item = Point> {
+        self.iter().filter(|Point(x, y)| x < y)
+    }
+
+    pub fn iter_upper_strict_triangle(&self) -> impl Iterator<Item = Point> {
+        self.iter().filter(|Point(x, y)| x >= y)
+    }
+
     pub fn random_point_within(&self) -> Point {
         Point::from(self.random_coordinates_within())
     }

@@ -1,5 +1,5 @@
 use crate::{ColorMapping, ColoredObject, Fill, Filter, ObjectSizes, Region};
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 #[derive(Debug, Clone, Default)]
 // #[wasm_bindgen(getter_with_clone)]
@@ -60,12 +60,14 @@ impl Layer {
         self.flush();
     }
 
-    pub fn add_object(&mut self, name: &str, object: ColoredObject) {
-        if self.objects.contains_key(name) {
-            panic!("object {} already exists in layer {}", name, self.name);
+    pub fn add_object<'a, N: Display>(&mut self, name: N, object: ColoredObject) {
+        let name_str = format!("{}", name);
+
+        if self.objects.contains_key(&name_str) {
+            panic!("object {} already exists in layer {}", name_str, self.name);
         }
 
-        self.objects.insert(name.to_string(), object);
+        self.objects.insert(name_str, object);
         self.flush();
     }
 

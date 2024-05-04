@@ -102,9 +102,9 @@ impl Canvas {
         self.ensure_layer_exists(name);
         self.layers.sort_by(|a, _| {
             if a.name == name {
-                cmp::Ordering::Greater
-            } else {
                 cmp::Ordering::Less
+            } else {
+                cmp::Ordering::Greater
             }
         })
     }
@@ -114,11 +114,39 @@ impl Canvas {
         self.ensure_layer_exists(name);
         self.layers.sort_by(|a, _| {
             if a.name == name {
-                cmp::Ordering::Less
-            } else {
                 cmp::Ordering::Greater
+            } else {
+                cmp::Ordering::Less
             }
         })
+    }
+
+    /// re-order layers. The first layer in the list will be on top, the last at the bottom
+    pub fn reorder_layers(&mut self, new_order: Vec<&str>) {
+        println!(
+            "re-ordering {:?} to {:?}",
+            self.layers
+                .iter()
+                .map(|l| l.name.clone())
+                .collect::<Vec<_>>(),
+            new_order
+        );
+        let current_order = self
+            .layers
+            .iter()
+            .map(|l| l.name.clone())
+            .collect::<Vec<_>>();
+
+        // make sure the new order is well-formed
+        // assert_eq!(self.layers.len(), new_order.len());
+        assert!(new_order.iter().all(|name| self.layer_exists(name)));
+
+        self.layers.sort_by_key(|o| {
+            new_order
+                .iter()
+                .position(|&n| n == o.name)
+                .unwrap_or(current_order.iter().position(|n| *n == o.name).unwrap())
+        });
     }
 
     pub fn root(&mut self) -> &mut Layer {

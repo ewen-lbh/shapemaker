@@ -331,13 +331,14 @@ impl Object {
     }
 
     fn render_line(&self, cell_size: usize) -> Box<dyn svg::node::Node> {
-        if let Object::Line(start, end, _) = self {
+        if let Object::Line(start, end, width) = self {
             return Box::new(
                 svg::node::element::Line::new()
                     .set("x1", start.coords(cell_size).0)
                     .set("y1", start.coords(cell_size).1)
                     .set("x2", end.coords(cell_size).0)
-                    .set("y2", end.coords(cell_size).1),
+                    .set("y2", end.coords(cell_size).1)
+                    .set("stroke-width", *width),
             );
         }
 

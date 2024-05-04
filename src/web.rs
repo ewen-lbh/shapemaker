@@ -40,7 +40,7 @@ macro_rules! console_log {
 
 #[wasm_bindgen]
 pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
-    let mut canvas = examples::title();
+    let mut canvas = examples::dna_analysis_machine();
     canvas.colormap = ColorMapping {
         black: "#ffffff".into(),
         white: "#ffffff".into(),

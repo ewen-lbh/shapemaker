@@ -12,7 +12,7 @@ pub fn run(args: cli::Args) {
     let mut canvas = canvas_from_cli(&args);
 
     if args.cmd_image && !args.cmd_video {
-        canvas = examples::title();
+        canvas = examples::dna_analysis_machine();
         let rendered = canvas.render(&vec!["*"], true);
         if args.arg_file.ends_with(".svg") {
             std::fs::write(args.arg_file, rendered).unwrap();
