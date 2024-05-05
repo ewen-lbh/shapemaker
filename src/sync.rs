@@ -5,8 +5,8 @@ use crate::Stem;
 pub type TimestampMS = usize;
 
 pub trait Syncable {
-    fn load(&self) -> SyncData;
     fn new(path: &str) -> Self;
+    fn load(&self, progress: Option<&indicatif::ProgressBar>) -> SyncData;
 }
 
 #[derive(Debug, Default)]

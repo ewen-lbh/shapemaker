@@ -27,8 +27,8 @@ pub fn dna_analysis_machine() -> Canvas {
 
     let draw_in = canvas.world_region.resized(-1, -1);
 
-    let splines_area = Region::from_bottomleft(draw_in.bottomleft().translated(2, -1), (3, 3));
-    let red_circle_in = Region::from_topright(draw_in.topright().translated(-3, 0), (4, 3));
+    let splines_area = Region::from_bottomleft(draw_in.bottomleft().translated(2, -1), (3, 3)).unwrap();
+    let red_circle_in = Region::from_topright(draw_in.topright().translated(-3, 0), (4, 3)).unwrap();
 
     let red_circle_at = red_circle_in.random_point_within();
 
@@ -113,7 +113,7 @@ pub fn dna_analysis_machine() -> Canvas {
 
 pub fn title() -> Canvas {
     let mut canvas = dna_analysis_machine();
-    let text_zone = Region::from_topleft(Point(8, 2), (3, 3));
+    let text_zone = Region::from_topleft(Point(8, 2), (3, 3)).unwrap();
     canvas.remove_all_objects_in(&text_zone);
     let last_letter_at = &text_zone.bottomright().translated(1, 0);
     canvas.remove_all_objects_in(&last_letter_at.region());

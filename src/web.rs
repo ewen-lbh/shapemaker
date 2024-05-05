@@ -1,13 +1,12 @@
+#![allow(unused)]
+
 use std::sync::Mutex;
 
 use once_cell::sync::Lazy;
-use wasm_bindgen::{prelude::wasm_bindgen};
+use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
-use crate::{
-    examples, Canvas, Color, ColorMapping, Fill, Filter, Layer,
-    Object, Point,
-};
+use crate::{examples, Canvas, Color, ColorMapping, Fill, Filter, Layer, Object, Point};
 
 static WEB_CANVAS: Lazy<Mutex<Canvas>> = Lazy::new(|| Mutex::new(Canvas::default_settings()));
 
@@ -36,7 +35,6 @@ extern "C" {
 macro_rules! console_log {
     ($($t:tt)*) => (crate::log(&format_args!($($t)*).to_string()))
 }
-
 
 #[wasm_bindgen]
 pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
@@ -67,13 +65,13 @@ pub fn map_to_midi_controller() {}
 
 #[wasm_bindgen]
 pub fn render_canvas_into(selector: String) -> () {
-    let svgstring = canvas().render(&vec!["*"], false);
+    let svgstring = canvas().render(&vec!["*"], false).unwrap_throw();
     append_new_div_inside(svgstring, selector)
 }
 
 #[wasm_bindgen]
 pub fn render_canvas_at(selector: String) -> () {
-    let svgstring = canvas().render(&vec!["*"], false);
+    let svgstring = canvas().render(&vec!["*"], false).unwrap_throw();
     replace_content_with(svgstring, selector)
 }
 
@@ -129,7 +127,7 @@ impl From<(MidiEvent, MidiEventData)> for MidiMessage {
                     MidiMessage::PedalOn
                 }
             }
-            (MidiEvent::ControlChange, MidiEventData([controller, value, _])) => {
+            (MidiEvent::ControlChange, MidiEventData([_, controller, value])) => {
                 MidiMessage::ControlChange(controller, value.into())
             }
         }
@@ -137,14 +135,16 @@ impl From<(MidiEvent, MidiEventData)> for MidiMessage {
 }
 
 #[wasm_bindgen]
-pub fn render_canvas(layers_pattern: Option<String>, render_background: Option<bool>) -> String {
-    canvas().render(
-        &match layers_pattern {
-            Some(ref pattern) => vec![pattern],
-            None => vec!["*"],
-        },
-        render_background.unwrap_or(false),
-    )
+pub fn render_canvas(layers_pattern: Option<String>, render_background: Option<bool>) -> () {
+    canvas()
+        .render(
+            &match layers_pattern {
+                Some(ref pattern) => vec![pattern],
+                None => vec!["*"],
+            },
+            render_background.unwrap_or(false),
+        )
+        .unwrap_throw();
 }
 
 #[wasm_bindgen]
@@ -214,7 +214,7 @@ pub struct LayerWeb {
 #[wasm_bindgen]
 impl LayerWeb {
     pub fn render(&self) -> String {
-        canvas().render(&vec![&self.name], false)
+        canvas().render(&vec![&self.name], false).unwrap_throw()
     }
 
     pub fn render_into(&self, selector: String) -> () {

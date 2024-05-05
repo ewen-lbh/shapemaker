@@ -1,3 +1,4 @@
+use indicatif::ProgressBar;
 use itertools::Itertools;
 use midly::{MetaMessage, MidiMessage, TrackEvent, TrackEventKind};
 use std::{collections::HashMap, fmt::Debug, path::PathBuf};
@@ -18,10 +19,6 @@ impl Averageable for Vec<f32> {
     }
 }
 
-fn is_kick_channel(name: &str) -> bool {
-    name.contains("kick")
-}
-
 impl Syncable for MidiSynchronizer {
     fn new(path: &str) -> Self {
         Self {
@@ -29,8 +26,8 @@ impl Syncable for MidiSynchronizer {
         }
     }
 
-    fn load(&self) -> SyncData {
-        let (now, notes_per_instrument) = load_notes(&self.midi_path);
+    fn load(&self, progressbar: Option<&ProgressBar>) -> SyncData {
+        let (now, notes_per_instrument) = load_notes(&self.midi_path, progressbar);
 
         SyncData {
             bpm: tempo_to_bpm(now.tempo),
@@ -139,12 +136,20 @@ impl Debug for Note {
     }
 }
 
-fn load_notes<'a>(source: &PathBuf) -> (Now, HashMap<String, Vec<Note>>) {
+fn load_notes<'a>(
+    source: &PathBuf,
+    progressbar: Option<&ProgressBar>,
+) -> (Now, HashMap<String, Vec<Note>>) {
     // Read midi file using midly
+    if let Some(pb) = progressbar {
+        pb.set_length(1);
+        pb.set_prefix("Loading");
+        pb.set_message("reading MIDI file");
+        pb.set_position(0);
+    }
+
     let raw = std::fs::read(source).unwrap();
     let midifile = midly::Smf::parse(&raw).unwrap();
-    println!("# of tracks\n\t{}", midifile.tracks.len());
-    println!("{:#?}", midifile.header);
 
     let mut timeline = Timeline::new();
     let mut now = Now {
@@ -155,6 +160,7 @@ fn load_notes<'a>(source: &PathBuf) -> (Now, HashMap<String, Vec<Note>>) {
             midly::Timing::Timecode(fps, subframe) => (1.0 / fps.as_f32() / subframe as f32) as u16,
         },
     };
+
 
     // Get track names
     let mut track_no = 0;
@@ -179,8 +185,6 @@ fn load_notes<'a>(source: &PathBuf) -> (Now, HashMap<String, Vec<Note>>) {
             },
         );
     }
-
-    println!("{:#?}", track_names);
 
     // Convert ticks to absolute
     let mut track_no = 0;
@@ -215,6 +219,13 @@ fn load_notes<'a>(source: &PathBuf) -> (Now, HashMap<String, Vec<Note>>) {
         absolute_tick_to_ms.insert(*tick, now.ms);
     }
 
+    if let Some(ref pb) = progressbar {
+        pb.set_length(midifile.tracks.iter().map(|t| t.len()).sum::<usize>() as u64);
+        pb.set_prefix("Loading");
+        pb.set_message("parsing MIDI events");
+        pb.set_position(0);
+    }
+
     // Add notes
     let mut stem_notes = StemNotes::new();
     for (tick, tracks) in timeline.iter().sorted_by_key(|(tick, _)| *tick) {
@@ -245,6 +256,9 @@ fn load_notes<'a>(source: &PathBuf) -> (Now, HashMap<String, Vec<Note>>) {
                     _ => {}
                 },
                 _ => {}
+            }
+            if let Some(ref pb) = progressbar {
+                pb.inc(1);
             }
         }
     }

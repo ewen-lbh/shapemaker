@@ -1,3 +1,5 @@
+#![allow(uncommon_codepoints)]
+
 pub mod animation;
 pub mod audio;
 pub mod canvas;
@@ -13,9 +15,11 @@ pub mod point;
 pub mod preview;
 pub mod region;
 pub mod sync;
+pub mod ui;
 pub mod video;
 pub mod web;
 pub use animation::*;
+use anyhow::Result;
 pub use audio::*;
 pub use canvas::*;
 pub use color::*;
@@ -30,18 +34,10 @@ pub use sync::Syncable;
 pub use video::*;
 pub use web::log;
 
-use indicatif::{ProgressBar, ProgressStyle};
 use nanoid::nanoid;
 use std::fs::{self};
-use std::ops::{Add, Div, Range, Sub};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use std::thread::{self, JoinHandle};
-use std::time;
 use sync::SyncData;
-
-const PROGRESS_BARS_STYLE: &str =
-    "{spinner:.cyan} {percent:03.bold.cyan}% {msg:<30} [{bar:100.bold.blue/dim.blue}] {eta:.cyan}";
 
 pub struct Context<'a, AdditionalContext = ()> {
     pub frame: usize,
@@ -57,18 +53,6 @@ pub struct Context<'a, AdditionalContext = ()> {
     pub duration_override: Option<usize>,
 }
 
-pub trait GetOrDefault {
-    type Item;
-    fn get_or(&self, index: usize, default: Self::Item) -> Self::Item;
-}
-
-impl<T: Copy> GetOrDefault for Vec<T> {
-    type Item = T;
-    fn get_or(&self, index: usize, default: T) -> T {
-        *self.get(index).unwrap_or(&default)
-    }
-}
-
 impl<'a, C> Context<'a, C> {
     pub fn stem(&self, name: &str) -> StemAtInstant {
         let stems = &self.syncdata.stems;
@@ -76,7 +60,7 @@ impl<'a, C> Context<'a, C> {
             panic!("No stem named {:?} found.", name);
         }
         StemAtInstant {
-            amplitude: stems[name].amplitude_db.get_or(self.ms, 0.0),
+            amplitude: *stems[name].amplitude_db.get(self.ms).unwrap_or(&0.0),
             amplitude_max: stems[name].amplitude_max,
             velocity_max: stems[name]
                 .notes
@@ -90,11 +74,12 @@ impl<'a, C> Context<'a, C> {
         }
     }
 
-    pub fn dump_stems(&self, to: PathBuf) {
-        std::fs::create_dir_all(&to);
+    pub fn dump_stems(&self, to: PathBuf) -> Result<()> {
+        std::fs::create_dir_all(&to)?;
         for (name, stem) in self.syncdata.stems.iter() {
-            fs::write(to.join(name), format!("{:?}", stem));
+            fs::write(to.join(name), format!("{:?}", stem))?;
         }
+        Ok(())
     }
 
     pub fn marker(&self) -> String {
@@ -185,41 +170,5 @@ impl<'a, C> Context<'a, C> {
     }
 }
 
-struct SpinState {
-    pub spinner: ProgressBar,
-    pub finished: Arc<Mutex<bool>>,
-    pub thread: JoinHandle<()>,
-}
-
-impl SpinState {
-    fn start(message: &str) -> Self {
-        let spinner = ProgressBar::new(0).with_style(
-            ProgressStyle::with_template(&("{spinner:.cyan} ".to_owned() + message)).unwrap(),
-        );
-        spinner.tick();
-
-        let thread_spinner = spinner.clone();
-        let finished = Arc::new(Mutex::new(false));
-        let thread_finished = Arc::clone(&finished);
-        let spinner_thread = thread::spawn(move || {
-            while !*thread_finished.lock().unwrap() {
-                thread_spinner.tick();
-                thread::sleep(time::Duration::from_millis(100));
-            }
-            thread_spinner.finish_and_clear();
-        });
-
-        Self {
-            spinner: spinner.clone(),
-            finished,
-            thread: spinner_thread,
-        }
-    }
-    fn end(self, message: &str) {
-        *self.finished.lock().unwrap() = true;
-        self.thread.join().unwrap();
-        println!("{}", message);
-    }
-}
-
+#[allow(unused)]
 fn main() {}

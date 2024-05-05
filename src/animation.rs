@@ -1,9 +1,9 @@
 use std::fmt::Display;
 
-use crate::{Canvas, Context, LaterHookCondition, RenderFunction};
+use crate::Canvas;
 
 /// Arguments: animation progress (from 0.0 to 1.0), canvas, current ms
-pub type AnimationUpdateFunction = dyn Fn(f32, &mut Canvas, usize);
+pub type AnimationUpdateFunction = dyn Fn(f32, &mut Canvas, usize) -> anyhow::Result<()>;
 
 pub struct Animation {
     pub name: String,

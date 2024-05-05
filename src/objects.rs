@@ -47,6 +47,10 @@ impl ColoredObject {
     pub fn clear_filters(&mut self) {
         self.2.clear();
     }
+
+    pub fn fill(&self) -> Option<Fill> {
+        self.1
+    }
 }
 
 impl std::fmt::Display for ColoredObject {

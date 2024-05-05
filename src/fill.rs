@@ -1,4 +1,3 @@
-
 use crate::{Color, ColorMapping, RenderCSS};
 
 #[derive(Debug, Clone, Copy)]
@@ -17,9 +16,17 @@ pub enum HatchDirection {
     TopDownDiagonal,
 }
 
-const PATTERN_SIZE: usize = 8;
-
 impl HatchDirection {}
+
+impl Fill {
+    pub fn opacify(&self, opacity: f32) -> Self {
+        match self {
+            Fill::Solid(color) => Fill::Translucent(*color, opacity),
+            Fill::Translucent(color, _) => Fill::Translucent(*color, opacity),
+            _ => self.clone(),
+        }
+    }
+}
 
 impl RenderCSS for Fill {
     fn render_fill_css(&self, colormap: &ColorMapping) -> String {
@@ -74,10 +81,11 @@ impl Fill {
     pub fn pattern_id(&self) -> String {
         if let Fill::Hatched(color, _, thickness, spacing) = self {
             return format!(
-                "pattern-{}-{}-{}",
+                "pattern-{}-{}-{}-{}",
                 self.pattern_name(),
                 color.name(),
-                thickness
+                thickness,
+                spacing
             );
         }
         String::from("")
@@ -146,4 +154,3 @@ impl Fill {
         }
     }
 }
-

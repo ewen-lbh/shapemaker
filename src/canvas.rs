@@ -1,6 +1,7 @@
 use core::panic;
 use std::{cmp, collections::HashMap, io::Write as _, ops::Range};
 
+use anyhow::Result;
 use itertools::Itertools as _;
 use rand::Rng;
 
@@ -188,7 +189,7 @@ impl Canvas {
             object_sizes: ObjectSizes::default(),
             colormap: ColorMapping::default(),
             layers: vec![],
-            world_region: Region::new(0, 0, 3, 3),
+            world_region: Region::new(0, 0, 3, 3).unwrap(),
             background: None,
         }
     }
@@ -379,6 +380,7 @@ impl Canvas {
     }
 
     pub fn random_point(&self, region: &Region) -> Point {
+        region.ensure_nonempty().unwrap();
         Point(
             rand::thread_rng().gen_range(region.x_range()),
             rand::thread_rng().gen_range(region.y_range()),
@@ -458,7 +460,7 @@ impl Canvas {
     }
 
     pub fn aspect_ratio(&self) -> f32 {
-        return self.height() as f32 / self.width() as f32;
+        return self.width() as f32 / self.height() as f32;
     }
 
     pub fn remove_all_objects_in(&mut self, region: &Region) {
@@ -517,7 +519,7 @@ impl Canvas {
         )
     }
 
-    pub fn render(&mut self, layers: &Vec<&str>, render_background: bool) -> String {
+    pub fn render(&mut self, layers: &Vec<&str>, render_background: bool) -> Result<String> {
         let background_color = self.background.unwrap_or_default();
         let mut svg = svg::Document::new();
         if render_background {
@@ -550,7 +552,8 @@ impl Canvas {
             }
         }
 
-        svg.add(defs)
+        let rendered = svg
+            .add(defs)
             .set(
                 "viewBox",
                 format!(
@@ -562,6 +565,8 @@ impl Canvas {
             )
             .set("width", self.width())
             .set("height", self.height())
-            .to_string()
+            .to_string();
+
+        Ok(rendered)
     }
 }

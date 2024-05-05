@@ -78,7 +78,7 @@ impl Note {
 
 impl Display for SyncData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "SyncData @ {} bpm\n{} stems", self.bpm, self.stems.len())
+        write!(f, "SyncData @ {} bpm, {} stems", self.bpm, self.stems.len())
     }
 }
 

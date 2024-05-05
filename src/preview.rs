@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fs, path::PathBuf};
 
+use anyhow::Result;
 use handlebars::Handlebars;
 use itertools::Itertools;
 use serde_json::json;
@@ -39,7 +40,7 @@ pub fn output_preview(
     server_port: usize,
     output_file: PathBuf,
     audio_file: PathBuf,
-) {
+) -> Result<()> {
     let first_frames = rendered_svg_frames
         .iter()
         // over 3000 loaded frames get really heavy on the browser (too much DOM nodes)
@@ -49,10 +50,11 @@ pub fn output_preview(
         .collect::<HashMap<usize, String>>();
 
     let contents = render_template(&first_frames, canvas, audio_file, server_port);
-    fs::write(output_file, contents);
+    fs::write(output_file, contents)?;
+    Ok(())
 }
 
-pub fn start_preview_server(port: usize, frames: HashMap<usize, String>) {
+pub fn start_preview_server(port: usize, frames: HashMap<usize, String>) -> Result<()> {
     let server = tiny_http::Server::http(format!("0.0.0.0:{}", port)).unwrap();
     println!("Preview server running on port {}", port);
     let sorted_frames: Vec<(&usize, &String)> =
@@ -84,8 +86,9 @@ pub fn start_preview_server(port: usize, frames: HashMap<usize, String>) {
                 field: "Access-Control-Allow-Origin".parse().unwrap(),
                 value: "*".parse().unwrap(),
             },
-        ));
+        ))?;
     }
+    Ok(())
 }
 
 // returns (ms timestamp of first frame to send, number of frames to send)
