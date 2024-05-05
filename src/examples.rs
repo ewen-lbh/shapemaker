@@ -20,7 +20,6 @@ pub fn dna_analysis_machine() -> Canvas {
         cyan: "#4fecec".into(),
     };
 
-    canvas.canvas_outter_padding = 900;
     canvas.set_grid_size(16, 9);
     canvas.set_background(Color::Black);
     let mut hatches_layer = Layer::new("hatches");
