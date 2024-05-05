@@ -4,6 +4,8 @@ build:
 
 web:
     wasm-pack build --target web -d web
+    echo "" >> web/.gitignore
+    echo "!index.html" >> web/.gitignore
 
 start-web:
     just web
