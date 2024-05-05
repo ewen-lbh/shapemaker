@@ -8,9 +8,13 @@
 
 * * *
 
+> **⚠️ Warning:**
+> README is still a work-in-progress
+
 An experiment into the generation of 2D flat design abstract artwork using limited shape and color combinations, arranged in a 8-point grid.
 
-[![wakatime](https://wakatime.com/badge/github/ewen-lbh/shapemaker.svg)](https://wakatime.com/badge/github/ewen-lbh/shapemaker)
+[![wakatime](https://wakatime.com/badge/github/ewen-lbh/shapemaker.svg)](https://wakatime.com/badge/github/ewen-lbh/shapemaker) [![Crates.io Version](https://img.shields.io/crates/v/shapemaker)](https://crates.io/crates/shapemaker) [![docs.rs](https://img.shields.io/docsrs/shapemaker)](https://docs.rs/shapemaker)
+
 
 ## Gallery
 
