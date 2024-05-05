@@ -109,6 +109,20 @@ pub trait RenderCSS {
     }
 }
 
+impl<T: RenderCSS> RenderCSS for Option<T> {
+    fn render_fill_css(&self, colormap: &ColorMapping) -> String {
+        self.as_ref()
+            .map(|v| v.render_fill_css(colormap))
+            .unwrap_or_default()
+    }
+
+    fn render_stroke_css(&self, colormap: &ColorMapping) -> String {
+        self.as_ref()
+            .map(|v| v.render_stroke_css(colormap))
+            .unwrap_or_default()
+    }
+}
+
 impl Object {
     pub fn translate(&mut self, dx: i32, dy: i32) {
         match self {

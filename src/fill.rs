@@ -147,14 +147,3 @@ impl Fill {
     }
 }
 
-impl RenderCSS for Option<Fill> {
-    fn render_fill_css(&self, colormap: &ColorMapping) -> String {
-        self.map(|fill| fill.render_fill_css(colormap))
-            .unwrap_or_default()
-    }
-
-    fn render_stroke_css(&self, colormap: &ColorMapping) -> String {
-        self.map(|fill| fill.render_stroke_css(colormap))
-            .unwrap_or_default()
-    }
-}
