@@ -43,6 +43,7 @@ impl Canvas {
                     objects: HashMap::new(),
                     name: name.to_string(),
                     _render_cache: None,
+                    hidden: false,
                 })
                 .collect(),
             ..Self::default_settings()
@@ -233,6 +234,7 @@ impl Canvas {
             name: name.to_string(),
             objects,
             _render_cache: None,
+            hidden: false,
         }
     }
 
@@ -267,6 +269,7 @@ impl Canvas {
             name: layer_name.to_owned(),
             objects,
             _render_cache: None,
+            hidden: false,
         }
     }
 
@@ -512,7 +515,7 @@ impl Canvas {
         )
     }
 
-    pub fn render(&mut self, layers: &Vec<&str>, render_background: bool) -> Result<String> {
+    pub fn render(&mut self, render_background: bool) -> Result<String> {
         let background_color = self.background.unwrap_or_default();
         let mut svg = svg::Document::new();
         if render_background {
@@ -525,12 +528,7 @@ impl Canvas {
                     .set("fill", background_color.render(&self.colormap)),
             );
         }
-        for layer in self
-            .layers
-            .iter_mut()
-            .filter(|layer| layers.contains(&"*") || layers.contains(&layer.name.as_str()))
-            .rev()
-        {
+        for layer in self.layers.iter_mut().filter(|layer| !layer.hidden).rev() {
             svg = svg.add(layer.render(self.colormap.clone(), self.cell_size, layer.object_sizes));
         }
 

@@ -1,4 +1,4 @@
-use crate::{ColorMapping, ColoredObject, Fill, Filter, ObjectSizes, Region};
+use crate::{ColorMapping, ColoredObject, Fill, Filter, ObjectSizes, Region, Toggleable};
 use std::{collections::HashMap, fmt::Display};
 
 #[derive(Debug, Clone, Default)]
@@ -7,6 +7,7 @@ pub struct Layer {
     pub object_sizes: ObjectSizes,
     pub objects: HashMap<String, ColoredObject>,
     pub name: String,
+    pub hidden: bool,
     pub _render_cache: Option<svg::node::element::Group>,
 }
 
@@ -17,7 +18,20 @@ impl Layer {
             objects: HashMap::new(),
             name: name.to_string(),
             _render_cache: None,
+            hidden: false,
         }
+    }
+
+    pub fn hide(&mut self) {
+        self.hidden = true;
+    }
+
+    pub fn show(&mut self) {
+        self.hidden = false;
+    }
+
+    pub fn toggle(&mut self) {
+        self.hidden.toggle();
     }
 
     pub fn object(&mut self, name: &str) -> &mut ColoredObject {

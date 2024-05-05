@@ -190,5 +190,15 @@ impl<'a, C> Context<'a, C> {
     }
 }
 
+trait Toggleable {
+    fn toggle(&mut self);
+}
+
+impl Toggleable for bool {
+    fn toggle(&mut self) {
+        *self = !*self;
+    }
+}
+
 #[allow(unused)]
 fn main() {}

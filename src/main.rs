@@ -13,7 +13,7 @@ pub fn run(args: cli::Args) -> Result<()> {
 
     if args.cmd_image && !args.cmd_video {
         canvas = examples::dna_analysis_machine();
-        let rendered = canvas.render(&vec!["*"], true)?;
+        let rendered = canvas.render(true)?;
         if args.arg_file.ends_with(".svg") {
             std::fs::write(args.arg_file, rendered).unwrap();
         } else {

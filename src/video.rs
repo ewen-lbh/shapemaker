@@ -18,7 +18,8 @@ use crate::{
     preview,
     sync::SyncData,
     ui::{self, setup_progress_bar, Log as _},
-    Canvas, ColoredObject, Context, MidiSynchronizer, MusicalDurationUnit, Syncable,
+    Canvas, ColoredObject, Context, LayerAnimationUpdateFunction, MidiSynchronizer,
+    MusicalDurationUnit, Syncable,
 };
 
 pub type BeatNumber = usize;
@@ -449,6 +450,23 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         Self { commands, ..self }
     }
 
+    pub fn bind_amplitude(
+        self,
+        layer: &'static str,
+        stem: &'static str,
+        update: &'static LayerAnimationUpdateFunction,
+    ) -> Self {
+        self.with_hook(Hook {
+            when: Box::new(move |_, _, _, _| true),
+            render_function: Box::new(move |canvas, context| {
+                let amplitude = context.stem(stem).amplitude_relative();
+                update(amplitude, canvas.layer(layer), context.ms)?;
+                canvas.layer(layer).flush();
+                Ok(())
+            }),
+        })
+    }
+
     pub fn total_frames(&self) -> usize {
         self.fps * (self.duration_ms() + self.start_rendering_at) / 1000
     }
@@ -470,7 +488,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let mut rendered_frames: HashMap<usize, String> = HashMap::new();
         let progress_bar = self.setup_progress_bar();
 
-        for (frame, _, ms) in self.render_frames(&progress_bar, vec!["*"], true)? {
+        for (frame, _, ms) in self.render_frames(&progress_bar, true)? {
             rendered_frames.insert(ms, frame);
         }
 
@@ -493,7 +511,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         workers_count: usize,
         preview_only: bool,
     ) -> Result<()> {
-        self.render_composition(output_file, vec!["*"], true, workers_count, preview_only)
+        self.render(output_file, true, workers_count, preview_only)
     }
 
     pub fn render_layers_in(&self, output_directory: String, workers_count: usize) -> Result<()> {
@@ -503,9 +521,8 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             .iter()
             .map(|l| vec![l.name.as_str()])
         {
-            self.render_composition(
+            self.render(
                 format!("{}/{}.mov", output_directory, composition.join("+")),
-                composition,
                 false,
                 workers_count,
                 false,
@@ -518,7 +535,6 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
     pub fn render_frames(
         &self,
         progress_bar: &ProgressBar,
-        composition: Vec<&str>,
         render_background: bool,
     ) -> Result<Vec<(String, usize, usize)>> {
         let mut context = Context {
@@ -611,7 +627,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             }
 
             if context.frame != previous_rendered_frame {
-                let rendered = canvas.render(&composition, render_background)?;
+                let rendered = canvas.render(render_background)?;
 
                 previous_rendered_beat = context.beat;
                 previous_rendered_frame = context.frame;
@@ -627,10 +643,9 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         ui::setup_progress_bar(self.total_frames() as u64, "Rendering")
     }
 
-    pub fn render_composition(
+    pub fn render(
         &self,
         output_file: String,
-        composition: Vec<&str>,
         render_background: bool,
         workers_count: usize,
         _preview_only: bool,
@@ -651,9 +666,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         self.progress_bar.set_prefix("Rendering");
         self.progress_bar.set_message("");
 
-        for (frame, no, ms) in
-            self.render_frames(&self.progress_bar, composition, render_background)?
-        {
+        for (frame, no, ms) in self.render_frames(&self.progress_bar, render_background)? {
             frames_to_write.push((frame, no, ms));
         }
 
@@ -697,7 +710,8 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                                 frames_output_directory,
                                 aspect_ratio,
                                 resolution,
-                            ).unwrap();
+                            )
+                            .unwrap();
                             progress_bar.inc(1);
                         }
                     })

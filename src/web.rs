@@ -65,13 +65,13 @@ pub fn map_to_midi_controller() {}
 
 #[wasm_bindgen]
 pub fn render_canvas_into(selector: String) -> () {
-    let svgstring = canvas().render(&vec!["*"], false).unwrap_throw();
+    let svgstring = canvas().render(false).unwrap_throw();
     append_new_div_inside(svgstring, selector)
 }
 
 #[wasm_bindgen]
 pub fn render_canvas_at(selector: String) -> () {
-    let svgstring = canvas().render(&vec!["*"], false).unwrap_throw();
+    let svgstring = canvas().render(false).unwrap_throw();
     replace_content_with(svgstring, selector)
 }
 
@@ -135,15 +135,9 @@ impl From<(MidiEvent, MidiEventData)> for MidiMessage {
 }
 
 #[wasm_bindgen]
-pub fn render_canvas(layers_pattern: Option<String>, render_background: Option<bool>) -> () {
+pub fn render_canvas(render_background: Option<bool>) -> () {
     canvas()
-        .render(
-            &match layers_pattern {
-                Some(ref pattern) => vec![pattern],
-                None => vec!["*"],
-            },
-            render_background.unwrap_or(false),
-        )
+        .render(render_background.unwrap_or(false))
         .unwrap_throw();
 }
 
@@ -214,7 +208,7 @@ pub struct LayerWeb {
 #[wasm_bindgen]
 impl LayerWeb {
     pub fn render(&self) -> String {
-        canvas().render(&vec![&self.name], false).unwrap_throw()
+        canvas().render(false).unwrap_throw()
     }
 
     pub fn render_into(&self, selector: String) -> () {

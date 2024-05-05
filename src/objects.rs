@@ -62,11 +62,15 @@ impl ColoredObject {
         colormap: &ColorMapping,
         id: &str,
     ) -> svg::node::element::Group {
-        let group = self.object.render(cell_size, object_sizes, id);
+        let mut group = self.object.render(cell_size, object_sizes, id);
 
-        let rendered_transforms = self
+        match self
             .transformations
-            .render_attribute(colormap, !self.object.fillable());
+            .render_attribute(colormap, !self.object.fillable())
+        {
+            (key, _) if key.is_empty() => (),
+            (key, value) => group = group.set(key, value),
+        }
 
         let mut css = String::new();
         if !matches!(self.object, Object::RawSVG(..)) {
@@ -81,9 +85,7 @@ impl ColoredObject {
             .join(" ")
             .as_ref();
 
-        group
-            .set("style", css)
-            .set(rendered_transforms.0, rendered_transforms.1)
+        group.set("style", css)
     }
 }
 
@@ -177,9 +179,8 @@ impl<T: RenderAttribute> RenderAttribute for Vec<T> {
     fn render_fill_attribute(&self, colormap: &ColorMapping) -> (String, String) {
         (
             self.first()
-                .unwrap()
-                .render_fill_attribute(colormap)
-                .0
+                .map(|v| v.render_fill_attribute(colormap).0)
+                .unwrap_or_default()
                 .clone(),
             self.iter()
                 .map(|v| v.render_fill_attribute(colormap).1.clone())
@@ -190,9 +191,8 @@ impl<T: RenderAttribute> RenderAttribute for Vec<T> {
     fn render_stroke_attribute(&self, colormap: &ColorMapping) -> (String, String) {
         (
             self.first()
-                .unwrap()
-                .render_stroke_attribute(colormap)
-                .0
+                .map(|v| v.render_stroke_attribute(colormap).0)
+                .unwrap_or_default()
                 .clone(),
             self.iter()
                 .map(|v| v.render_stroke_attribute(colormap).1.clone())
