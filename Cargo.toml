@@ -2,6 +2,12 @@
 name = "shapemaker"
 version = "1.1.0"
 edition = "2021"
+include = ["/src", "/web/index.html", "/preview"]
+license = "AGPL-3.0"
+homepage = "https://ewen.works/shapemaker"
+repository = "https://github.com/ewen-lbh/shapemaker"
+authors = ["Ewen Le Bihan <hey@ewen.works>"]
+description = "An experimental WASM-capable, generative SVG-based video rendering engine that reacts to MIDI or audio data"
 
 [lib]
 crate-type = ["cdylib", "lib"]
