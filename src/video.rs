@@ -575,7 +575,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                             .trim_start_matches(&command.name)
                             .trim()
                             .to_string();
-                        (command.action)(args, &mut canvas, &mut context);
+                        (command.action)(args, &mut canvas, &mut context)?;
                     }
                 }
             }
@@ -638,9 +638,9 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let mut frame_writer_threads = vec![];
         let mut frames_to_write: Vec<(String, usize, usize)> = vec![];
 
-        remove_dir_all(self.frames_output_directory);
-        create_dir(self.frames_output_directory).unwrap();
-        create_dir_all(Path::new(&output_file).parent().unwrap()).unwrap();
+        remove_dir_all(self.frames_output_directory)?;
+        create_dir(self.frames_output_directory)?;
+        create_dir_all(Path::new(&output_file).parent().unwrap())?;
 
         let total_frames = self.total_frames();
         let aspect_ratio =
@@ -674,7 +674,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             std::fs::write(
                 format!("{}/{}.svg", self.frames_output_directory, no),
                 &frame,
-            );
+            )?;
         }
 
         let chunk_size = (frames_to_write.len() as f32 / workers_count as f32).ceil() as usize;
@@ -697,7 +697,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                                 frames_output_directory,
                                 aspect_ratio,
                                 resolution,
-                            );
+                            ).unwrap();
                             progress_bar.inc(1);
                         }
                     })

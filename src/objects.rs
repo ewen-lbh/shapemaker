@@ -1,4 +1,6 @@
-use crate::{ColorMapping, Fill, Filter, Point, Region};
+use std::collections::HashMap;
+
+use crate::{ColorMapping, Fill, Filter, Point, Region, Transformation};
 use itertools::Itertools;
 use wasm_bindgen::prelude::*;
 
@@ -36,48 +38,101 @@ impl Object {
 }
 
 #[derive(Debug, Clone)]
-pub struct ColoredObject(pub Object, pub Option<Fill>, pub Vec<Filter>);
+pub struct ColoredObject {
+    pub object: Object,
+    pub fill: Option<Fill>,
+    pub filters: Vec<Filter>,
+    pub transformations: Vec<Transformation>,
+}
 
 impl ColoredObject {
     pub fn filter(mut self, filter: Filter) -> Self {
-        self.2.push(filter);
+        self.filters.push(filter);
         self
     }
 
     pub fn clear_filters(&mut self) {
-        self.2.clear();
+        self.filters.clear();
     }
 
-    pub fn fill(&self) -> Option<Fill> {
-        self.1
+    pub fn render(
+        &self,
+        cell_size: usize,
+        object_sizes: ObjectSizes,
+        colormap: &ColorMapping,
+        id: &str,
+    ) -> svg::node::element::Group {
+        let group = self.object.render(cell_size, object_sizes, id);
+
+        let rendered_transforms = self
+            .transformations
+            .render_attribute(colormap, !self.object.fillable());
+
+        let mut css = String::new();
+        if !matches!(self.object, Object::RawSVG(..)) {
+            css = self.fill.render_css(colormap, !self.object.fillable());
+        }
+
+        css += self
+            .filters
+            .iter()
+            .map(|f| f.render_fill_css(colormap))
+            .into_iter()
+            .join(" ")
+            .as_ref();
+
+        group
+            .set("style", css)
+            .set(rendered_transforms.0, rendered_transforms.1)
     }
 }
 
 impl std::fmt::Display for ColoredObject {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let ColoredObject(obj, fill, filters) = self;
+        let ColoredObject {
+            object,
+            fill,
+            filters,
+            transformations,
+        } = self;
+
         if fill.is_some() {
-            write!(f, "{:?} {:?}", fill.unwrap(), obj)?;
+            write!(f, "{:?} {:?}", fill.unwrap(), object)?;
         } else {
-            write!(f, "transparent {:?}", obj)?;
+            write!(f, "transparent {:?}", object)?;
         }
 
         if !filters.is_empty() {
             write!(f, " with filters {:?}", filters)?;
         }
+
+        if !transformations.is_empty() {
+            write!(f, " with transformations {:?}", transformations)?;
+        }
+
         Ok(())
     }
 }
 
 impl From<Object> for ColoredObject {
     fn from(value: Object) -> Self {
-        ColoredObject(value, None, vec![])
+        ColoredObject {
+            object: value,
+            fill: None,
+            filters: vec![],
+            transformations: vec![],
+        }
     }
 }
 
 impl From<(Object, Option<Fill>)> for ColoredObject {
-    fn from(value: (Object, Option<Fill>)) -> Self {
-        ColoredObject(value.0, value.1, vec![])
+    fn from((object, fill): (Object, Option<Fill>)) -> Self {
+        ColoredObject {
+            object,
+            fill,
+            filters: vec![],
+            transformations: vec![],
+        }
     }
 }
 
@@ -98,6 +153,51 @@ impl Default for ObjectSizes {
             dot_radius: 2.0,
             default_line_width: 2.0,
         }
+    }
+}
+
+pub trait RenderAttribute {
+    const MULTIPLE_VALUES_JOIN_BY: &'static str = ", ";
+
+    fn render_fill_attribute(&self, colormap: &ColorMapping) -> (String, String);
+    fn render_stroke_attribute(&self, colormap: &ColorMapping) -> (String, String);
+    fn render_attribute(
+        &self,
+        colormap: &ColorMapping,
+        fill_as_stroke_color: bool,
+    ) -> (String, String) {
+        if fill_as_stroke_color {
+            self.render_stroke_attribute(colormap)
+        } else {
+            self.render_fill_attribute(colormap)
+        }
+    }
+}
+impl<T: RenderAttribute> RenderAttribute for Vec<T> {
+    fn render_fill_attribute(&self, colormap: &ColorMapping) -> (String, String) {
+        (
+            self.first()
+                .unwrap()
+                .render_fill_attribute(colormap)
+                .0
+                .clone(),
+            self.iter()
+                .map(|v| v.render_fill_attribute(colormap).1.clone())
+                .join(", "),
+        )
+    }
+
+    fn render_stroke_attribute(&self, colormap: &ColorMapping) -> (String, String) {
+        (
+            self.first()
+                .unwrap()
+                .render_stroke_attribute(colormap)
+                .0
+                .clone(),
+            self.iter()
+                .map(|v| v.render_stroke_attribute(colormap).1.clone())
+                .join(", "),
+        )
     }
 }
 
@@ -220,10 +320,7 @@ impl Object {
         &self,
         cell_size: usize,
         object_sizes: ObjectSizes,
-        colormap: &ColorMapping,
         id: &str,
-        fill: Option<Fill>,
-        filter: &Vec<Filter>,
     ) -> svg::node::element::Group {
         let group = svg::node::element::Group::new();
 
@@ -239,19 +336,7 @@ impl Object {
             Object::RawSVG(..) => self.render_raw_svg(),
         };
 
-        let mut css = String::new();
-        if !matches!(self, Object::RawSVG(..)) {
-            css = fill.render_css(colormap, !self.fillable());
-        }
-
-        css += filter
-            .iter()
-            .map(|f| f.render_fill_css(colormap))
-            .into_iter()
-            .join(" ")
-            .as_ref();
-
-        group.set("data-object", id).add(rendered).set("style", css)
+        group.set("data-object", id).add(rendered)
     }
 
     fn render_raw_svg(&self) -> Box<dyn svg::node::Node> {

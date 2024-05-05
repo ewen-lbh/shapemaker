@@ -26,8 +26,10 @@ pub fn dna_analysis_machine() -> Canvas {
 
     let draw_in = canvas.world_region.resized(-1, -1);
 
-    let splines_area = Region::from_bottomleft(draw_in.bottomleft().translated(2, -1), (3, 3)).unwrap();
-    let red_circle_in = Region::from_topright(draw_in.topright().translated(-3, 0), (4, 3)).unwrap();
+    let splines_area =
+        Region::from_bottomleft(draw_in.bottomleft().translated(2, -1), (3, 3)).unwrap();
+    let red_circle_in =
+        Region::from_topright(draw_in.topright().translated(-3, 0), (4, 3)).unwrap();
 
     let red_circle_at = red_circle_in.random_point_within();
 
@@ -64,7 +66,7 @@ pub fn dna_analysis_machine() -> Canvas {
             }
             .color(Fill::Hatched(
                 Color::White,
-                HatchDirection::BottomUpDiagonal,
+                Angle(rand::thread_rng().gen_range(0.0..360.0)),
                 (i + 5) as f32 / 10.0,
                 0.25,
             )),
@@ -85,8 +87,8 @@ pub fn dna_analysis_machine() -> Canvas {
     canvas.layers.push(hatches_layer);
     canvas.layers.push(red_dot_friends);
     let mut splines = canvas.n_random_linelikes_within("splines", &splines_area, 30);
-    for (i, ColoredObject(_, ref mut fill, _)) in splines.objects.values_mut().enumerate() {
-        *fill = Some(Fill::Solid(if i % 2 == 0 {
+    for (i, object) in splines.objects.values_mut().enumerate() {
+        object.fill = Some(Fill::Solid(if i % 2 == 0 {
             Color::Cyan
         } else {
             Color::Pink

@@ -1,30 +1,79 @@
 use crate::{Color, ColorMapping, RenderCSS};
 
+/// Angle, stored in degrees
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Angle(pub f32);
+
+impl Angle {
+    pub const TURN: Self = Angle(360.0);
+
+    pub fn degrees(&self) -> f32 {
+        self.0
+    }
+
+    pub fn radians(&self) -> f32 {
+        self.0 * std::f32::consts::PI / (Self::TURN.0 / 2.0)
+    }
+
+    pub fn turns(&self) -> f32 {
+        self.0 / Self::TURN.0
+    }
+
+    pub fn without_turns(&self) -> Self {
+        Self(self.0 % Self::TURN.0)
+    }
+}
+
+impl std::ops::Sub for Angle {
+    type Output = Angle;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Angle(self.0 - rhs.0)
+    }
+}
+
+impl std::fmt::Display for Angle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}deg", self.degrees())
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Fill {
     Solid(Color),
     Translucent(Color, f32),
-    Hatched(Color, HatchDirection, f32, f32),
+    Hatched(Color, Angle, f32, f32),
     Dotted(Color, f32),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum HatchDirection {
-    Horizontal,
-    Vertical,
-    BottomUpDiagonal,
-    TopDownDiagonal,
+// Operations that can be applied on fills.
+// Applying them on Option<Fill> is also possible, and will return an Option<Fill>.
+pub trait FillOperations {
+    fn opacify(&self, opacity: f32) -> Self;
+    fn bottom_up_hatches(color: Color, thickness: f32, spacing: f32) -> Self;
 }
 
-impl HatchDirection {}
-
-impl Fill {
-    pub fn opacify(&self, opacity: f32) -> Self {
+impl FillOperations for Fill {
+    fn opacify(&self, opacity: f32) -> Self {
         match self {
             Fill::Solid(color) => Fill::Translucent(*color, opacity),
             Fill::Translucent(color, _) => Fill::Translucent(*color, opacity),
             _ => self.clone(),
         }
+    }
+
+    fn bottom_up_hatches(color: Color, thickness: f32, spacing: f32) -> Self {
+        Fill::Hatched(color, Angle(45.0), thickness, spacing)
+    }
+}
+
+impl FillOperations for Option<Fill> {
+    fn opacify(&self, opacity: f32) -> Self {
+        self.as_ref().map(|fill| fill.opacify(opacity))
+    }
+
+    fn bottom_up_hatches(color: Color, thickness: f32, spacing: f32) -> Self {
+        Some(Fill::bottom_up_hatches(color, thickness, spacing))
     }
 }
 
@@ -63,26 +112,11 @@ impl RenderCSS for Fill {
 }
 
 impl Fill {
-    pub fn pattern_name(&self) -> String {
-        match self {
-            Fill::Hatched(_, direction, ..) => format!(
-                "hatched-{}",
-                match direction {
-                    HatchDirection::Horizontal => "horizontal",
-                    HatchDirection::Vertical => "vertical",
-                    HatchDirection::BottomUpDiagonal => "bottom-up",
-                    HatchDirection::TopDownDiagonal => "top-down",
-                }
-            ),
-            _ => String::from(""),
-        }
-    }
-
     pub fn pattern_id(&self) -> String {
-        if let Fill::Hatched(color, _, thickness, spacing) = self {
+        if let Fill::Hatched(color, angle, thickness, spacing) = self {
             return format!(
                 "pattern-{}-{}-{}-{}",
-                self.pattern_name(),
+                angle,
                 color.name(),
                 thickness,
                 spacing
@@ -96,59 +130,46 @@ impl Fill {
         colormapping: &ColorMapping,
     ) -> Option<svg::node::element::Pattern> {
         match self {
-            Fill::Hatched(color, direction, size, thickness_ratio) => {
-                let root = svg::node::element::Pattern::new()
-                    .set("id", self.pattern_id())
-                    .set("patternUnits", "userSpaceOnUse");
-
+            Fill::Hatched(color, angle, size, thickness_ratio) => {
                 let thickness = size * (2.0 * thickness_ratio);
-                // TODO: to re-center when tickness ratio != ½
-                let offset = 0.0;
 
-                Some(match direction {
-                    HatchDirection::BottomUpDiagonal => root
-                        // https://stackoverflow.com/a/74205714/9943464
-                        /*
-                                          <polygon points="0,0 4,0 0,4" fill="yellow"></polygon>
-                        <polygon points="0,8 8,0 8,4 4,8" fill="yellow"></polygon>
-                        <polygon points="0,4 0,8 8,0 4,0" fill="green"></polygon>
-                        <polygon points="4,8 8,8 8,4" fill="green"></polygon>
-                                           */
-                        .add(
-                            svg::node::element::Polygon::new()
-                                .set(
-                                    "points",
-                                    format!(
-                                        "0,0 {},0 0,{}",
-                                        offset + thickness / 2.0,
-                                        offset + thickness / 2.0
-                                    ),
-                                )
-                                .set("fill", color.render(colormapping)),
-                        )
-                        .add(
-                            svg::node::element::Polygon::new()
-                                .set(
-                                    "points",
-                                    format!(
-                                        "0,{} {},0 {},{} {},{}",
-                                        offset + size,
-                                        offset + size,
-                                        offset + size,
-                                        offset + thickness / 2.0,
-                                        offset + thickness / 2.0,
-                                        offset + size,
-                                    ),
-                                )
-                                .set("fill", color.render(colormapping)),
-                        )
-                        .set("height", size * 2.0)
-                        .set("width", size * 2.0)
-                        .set("viewBox", format!("0,0,{},{}", size, size)),
-                    HatchDirection::Horizontal => todo!(),
-                    HatchDirection::Vertical => todo!(),
-                    HatchDirection::TopDownDiagonal => todo!(),
-                })
+                let pattern = svg::node::element::Pattern::new()
+                    .set("id", self.pattern_id())
+                    .set("patternUnits", "userSpaceOnUse")
+                    .set("height", size * 2.0)
+                    .set("width", size * 2.0)
+                    .set("viewBox", format!("0,0,{},{}", size, size))
+                    .set(
+                        "patternTransform",
+                        format!("rotate({})", (angle.clone() - Angle(45.0)).degrees()),
+                    )
+                    // https://stackoverflow.com/a/55104220/9943464
+                    .add(
+                        svg::node::element::Polygon::new()
+                            .set(
+                                "points",
+                                format!("0,0 {},0 0,{}", thickness / 2.0, thickness / 2.0),
+                            )
+                            .set("fill", color.render(colormapping)),
+                    )
+                    .add(
+                        svg::node::element::Polygon::new()
+                            .set(
+                                "points",
+                                format!(
+                                    "0,{} {},0 {},{} {},{}",
+                                    size,
+                                    size,
+                                    size,
+                                    thickness / 2.0,
+                                    thickness / 2.0,
+                                    size,
+                                ),
+                            )
+                            .set("fill", color.render(colormapping)),
+                    );
+
+                Some(pattern)
             }
             _ => None,
         }

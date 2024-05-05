@@ -39,7 +39,7 @@ impl Filter {
 
     pub fn id(&self) -> String {
         format!(
-            "{}-{}",
+            "filter-{}-{}",
             self.name(),
             self.parameter.to_string().replace(".", "_")
         )

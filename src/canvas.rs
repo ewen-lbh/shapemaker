@@ -6,8 +6,8 @@ use itertools::Itertools as _;
 use rand::Rng;
 
 use crate::{
-    layer::Layer, objects::Object, random_color, Color, ColorMapping, ColoredObject, Containable,
-    Fill, Filter, HatchDirection, LineSegment, ObjectSizes, Point, Region,
+    layer::Layer, objects::Object, random_color, Angle, Color, ColorMapping, ColoredObject,
+    Containable, Fill, Filter, LineSegment, ObjectSizes, Point, Region,
 };
 
 #[derive(Debug, Clone)]
@@ -218,15 +218,14 @@ impl Canvas {
             let hatchable = object.hatchable();
             objects.insert(
                 format!("{}#{}", name, i),
-                ColoredObject(
+                ColoredObject::from((
                     object,
                     if rand::thread_rng().gen_bool(0.5) {
                         Some(self.random_fill(hatchable))
                     } else {
                         None
                     },
-                    vec![],
-                ),
+                )),
             );
         }
         Layer {
@@ -253,15 +252,14 @@ impl Canvas {
             let hatchable = object.fillable();
             objects.insert(
                 format!("{}#{}", layer_name, i),
-                ColoredObject(
+                ColoredObject::from((
                     object,
                     if rand::thread_rng().gen_bool(0.5) {
                         Some(self.random_fill(hatchable))
                     } else {
                         None
                     },
-                    vec![],
-                ),
+                )),
             );
         }
         Layer {
@@ -395,7 +393,7 @@ impl Canvas {
                     let hatch_size = rand::thread_rng().gen_range(5..=100) as f32 * 1e-2;
                     Fill::Hatched(
                         random_color(),
-                        HatchDirection::BottomUpDiagonal,
+                        Angle(rand::thread_rng().gen_range(0.0..360.0)),
                         hatch_size,
                         // under a certain hatch size, we can't see the hatching if the ratio is not ½
                         if hatch_size < 8.0 {
@@ -475,7 +473,7 @@ impl Canvas {
     fn unique_filters(&self) -> Vec<Filter> {
         self.layers
             .iter()
-            .flat_map(|layer| layer.objects.iter().flat_map(|(_, o)| o.2.clone()))
+            .flat_map(|layer| layer.objects.iter().flat_map(|(_, o)| o.filters.clone()))
             .unique()
             .collect()
     }
@@ -483,12 +481,7 @@ impl Canvas {
     fn unique_pattern_fills(&self) -> Vec<Fill> {
         self.layers
             .iter()
-            .flat_map(|layer| {
-                layer
-                    .objects
-                    .iter()
-                    .flat_map(|(_, o)| o.1.map(|fill| fill.clone()))
-            })
+            .flat_map(|layer| layer.objects.iter().flat_map(|(_, o)| o.fill))
             .filter(|fill| matches!(fill, Fill::Hatched(..)))
             .unique_by(|fill| fill.pattern_id())
             .collect()

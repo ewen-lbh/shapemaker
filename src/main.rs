@@ -1,5 +1,4 @@
 use anyhow::Result;
-use itertools::Itertools;
 use shapemaker::{
     cli::{canvas_from_cli, cli_args},
     *,

@@ -5,7 +5,7 @@ use std::thread::{self, JoinHandle};
 use std::time;
 
 pub const PROGRESS_BARS_STYLE: &str =
-    "{prefix:>12.bold.cyan} [{bar:40}] {pos}/{len}: {msg} ({eta} left)";
+    "{prefix:>12.bold.cyan} [{bar:25}] {pos}/{len}: {msg} ({eta} left)";
 
 pub struct Spinner {
     pub spinner: ProgressBar,
@@ -60,8 +60,8 @@ pub trait Log {
 }
 
 pub fn format_log_msg(verb: &'static str, message: &str) -> String {
-    let style = Style::new().bold().cyan();
-    format!("{}: {}", style.apply_to(format!("{verb:>12}")), message)
+    let style = Style::new().bold().green();
+    format!("{} {}", style.apply_to(format!("{verb:>12}")), message)
 }
 
 impl Log for ProgressBar {

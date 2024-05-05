@@ -15,6 +15,7 @@ pub mod point;
 pub mod preview;
 pub mod region;
 pub mod sync;
+pub mod transform;
 pub mod ui;
 pub mod video;
 pub mod web;
@@ -31,6 +32,7 @@ pub use objects::*;
 pub use point::*;
 pub use region::*;
 pub use sync::Syncable;
+pub use transform::*;
 pub use video::*;
 pub use web::log;
 
@@ -167,6 +169,24 @@ impl<'a, C> Context<'a, C> {
             duration,
             Animation::new(format!("unnamed animation {}", nanoid!()), f),
         );
+    }
+
+    pub fn animate_layer(
+        &mut self,
+        layer: &'static str,
+        duration: usize,
+        f: &'static LayerAnimationUpdateFunction,
+    ) {
+        let animation = Animation {
+            name: format!("unnamed animation {}", nanoid!()),
+            update: Box::new(move |progress, canvas, ms| {
+                (f)(progress, canvas.layer(layer), ms)?;
+                canvas.layer(layer).flush();
+                Ok(())
+            }),
+        };
+
+        self.start_animation(duration, animation);
     }
 }
 

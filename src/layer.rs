@@ -36,19 +36,19 @@ impl Layer {
 
     pub fn remove_all_objects_in(&mut self, region: &Region) {
         self.objects
-            .retain(|_, ColoredObject(o, ..)| !o.region().within(region))
+            .retain(|_, ColoredObject { object, .. }| !object.region().within(region))
     }
 
     pub fn paint_all_objects(&mut self, fill: Fill) {
-        for (_id, ColoredObject(_, ref mut maybe_fill, _)) in &mut self.objects {
-            *maybe_fill = Some(fill.clone());
+        for (_id, obj) in &mut self.objects {
+            obj.fill = Some(fill.clone());
         }
         self.flush();
     }
 
     pub fn filter_all_objects(&mut self, filter: Filter) {
-        for (_id, ColoredObject(_, _, ref mut filters)) in &mut self.objects {
-            filters.push(filter)
+        for (_id, obj) in &mut self.objects {
+            obj.filters.push(filter)
         }
         self.flush();
     }
@@ -56,7 +56,7 @@ impl Layer {
     pub fn move_all_objects(&mut self, dx: i32, dy: i32) {
         self.objects
             .iter_mut()
-            .for_each(|(_, ColoredObject(obj, _, _))| obj.translate(dx, dy));
+            .for_each(|(_, ColoredObject { object, .. })| object.translate(dx, dy));
         self.flush();
     }
 
@@ -81,7 +81,7 @@ impl Layer {
         self.objects
             .get_mut(name)
             .ok_or(format!("Object '{}' not found", name))?
-            .2
+            .filters
             .push(filter);
 
         self.flush();
@@ -113,15 +113,8 @@ impl Layer {
             .set("class", "layer")
             .set("data-layer", self.name.clone());
 
-        for (id, ColoredObject(object, maybe_fill, filters)) in &self.objects {
-            layer_group = layer_group.add(object.render(
-                cell_size,
-                object_sizes,
-                &colormap,
-                &id,
-                *maybe_fill,
-                filters,
-            ));
+        for (id, obj) in &self.objects {
+            layer_group = layer_group.add(obj.render(cell_size, object_sizes, &colormap, &id));
         }
 
         self._render_cache = Some(layer_group.clone());
