@@ -27,22 +27,30 @@ pub enum Color {
 }
 
 #[wasm_bindgen]
-pub fn random_color() -> Color {
-    match rand::thread_rng().gen_range(1..=12) {
-        1 => Color::Black,
-        2 => Color::White,
-        3 => Color::Red,
-        4 => Color::Green,
-        5 => Color::Blue,
-        6 => Color::Yellow,
-        7 => Color::Orange,
-        8 => Color::Purple,
-        9 => Color::Brown,
-        10 => Color::Pink,
-        11 => Color::Gray,
-        12 => Color::Cyan,
-        _ => unreachable!(),
-    }
+pub fn random_color(except: Option<Color>) -> Color {
+    let all = [
+        Color::Black,
+        Color::White,
+        Color::Red,
+        Color::Green,
+        Color::Blue,
+        Color::Yellow,
+        Color::Orange,
+        Color::Purple,
+        Color::Brown,
+        Color::Cyan,
+        Color::Pink,
+        Color::Gray,
+    ];
+    let candidates = all
+        .iter()
+        .filter(|c| match except {
+            None => true,
+            Some(color) => &&color != c,
+        })
+        .collect::<Vec<_>>();
+
+    *candidates[rand::thread_rng().gen_range(0..candidates.len())]
 }
 
 impl Default for Color {

@@ -219,14 +219,7 @@ impl Canvas {
             let hatchable = object.hatchable();
             objects.insert(
                 format!("{}#{}", name, i),
-                ColoredObject::from((
-                    object,
-                    if rand::thread_rng().gen_bool(0.5) {
-                        Some(self.random_fill(hatchable))
-                    } else {
-                        None
-                    },
-                )),
+                object.color(self.random_fill(hatchable)),
             );
         }
         Layer {
@@ -380,6 +373,16 @@ impl Canvas {
         region.start == (0, 0) && region.end == self.grid_size
     }
 
+    pub fn random_region(&self) -> Region {
+        let start = self.random_point(&self.world_region);
+        let end = self.random_end_anchor(start, &self.world_region);
+        Region::from(if start.0 > end.0 {
+            (end, start)
+        } else {
+            (start, end)
+        })
+    }
+
     pub fn random_point(&self, region: &Region) -> Point {
         region.ensure_nonempty().unwrap();
         Point(
@@ -391,11 +394,11 @@ impl Canvas {
     pub fn random_fill(&self, hatchable: bool) -> Fill {
         if hatchable {
             match rand::thread_rng().gen_range(1..=2) {
-                1 => Fill::Solid(random_color()),
+                1 => Fill::Solid(random_color(self.background)),
                 2 => {
                     let hatch_size = rand::thread_rng().gen_range(5..=100) as f32 * 1e-2;
                     Fill::Hatched(
-                        random_color(),
+                        random_color(self.background),
                         Angle(rand::thread_rng().gen_range(0.0..360.0)),
                         hatch_size,
                         // under a certain hatch size, we can't see the hatching if the ratio is not ½
@@ -409,7 +412,7 @@ impl Canvas {
                 _ => unreachable!(),
             }
         } else {
-            Fill::Solid(random_color())
+            Fill::Solid(random_color(self.background))
         }
     }
 

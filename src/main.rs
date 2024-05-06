@@ -1,4 +1,8 @@
+use std::env;
+
 use anyhow::Result;
+use itertools::Itertools;
+use rand::Rng;
 use shapemaker::{
     cli::{canvas_from_cli, cli_args},
     *,
@@ -11,8 +15,32 @@ pub fn main() -> Result<()> {
 pub fn run(args: cli::Args) -> Result<()> {
     let mut canvas = canvas_from_cli(&args);
 
+    let qrname = env::var("QRCODE_NAME").unwrap();
+
     if args.cmd_image && !args.cmd_video {
-        canvas = examples::dna_analysis_machine();
+        canvas.set_grid_size(3, 3);
+        canvas.add_or_replace_layer(canvas.random_layer("root"));
+        canvas.new_layer("qr");
+        let qrcode = Object::Image(
+            vec![
+                canvas.world_region.topleft(),
+                canvas.world_region.topright(),
+                canvas.world_region.bottomright(),
+                canvas.world_region.bottomleft(),
+            ][rand::thread_rng().gen_range(0..4)]
+            .region(),
+            format!("./{qrname}-qr.png"),
+        );
+        canvas.root().remove_all_objects_in(&qrcode.region());
+        canvas.set_background(Color::White);
+        canvas.add_object("qr", "qr", qrcode, None).unwrap();
+        canvas.put_layer_on_top("qr");
+        canvas.root().objects.values_mut().for_each(|o| {
+            if !o.object.fillable() {
+                o.fill = Some(Fill::Solid(Color::Black));
+            }
+        });
+
         let rendered = canvas.render(true)?;
         if args.arg_file.ends_with(".svg") {
             std::fs::write(args.arg_file, rendered).unwrap();

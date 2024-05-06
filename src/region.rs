@@ -208,9 +208,9 @@ impl Region {
 
     // panics if the region is invalid
     pub fn ensure_valid(self) -> Result<Self> {
-        if self.start.0 >= self.end.0 || self.start.1 >= self.end.1 {
+        if self.start.0 > self.end.0 || self.start.1 > self.end.1 {
             return Err(format_err!(
-                "Invalid region: start ({:?}) >= end ({:?})",
+                "Invalid region: start ({:?}) > end ({:?})",
                 self.start,
                 self.end
             ));

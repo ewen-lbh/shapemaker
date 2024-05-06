@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{cell, collections::HashMap};
 
 use crate::{ColorMapping, Fill, Filter, Point, Region, Transformation};
 use itertools::Itertools;
@@ -24,6 +24,7 @@ pub enum Object {
     CenteredText(Point, String, f32),
     // FittedText(Region, String),
     Rectangle(Point, Point),
+    Image(Region, String),
     RawSVG(Box<dyn svg::Node>),
 }
 
@@ -252,6 +253,7 @@ impl Object {
             | Object::Dot(anchor)
             | Object::SmallCircle(anchor) => anchor.translate(dx, dy),
             Object::BigCircle(center) => center.translate(dx, dy),
+            Object::Image(region, ..) => region.translate(dx, dy),
             Object::RawSVG(_) => {
                 unimplemented!()
             }
@@ -297,6 +299,7 @@ impl Object {
             | Object::Dot(anchor)
             | Object::SmallCircle(anchor) => anchor.region(),
             Object::BigCircle(center) => center.region(),
+            Object::Image(region, ..) => *region,
             Object::RawSVG(_) => {
                 unimplemented!()
             }
@@ -333,10 +336,27 @@ impl Object {
             Object::SmallCircle(..) => self.render_small_circle(cell_size, object_sizes),
             Object::Dot(..) => self.render_dot(cell_size, object_sizes),
             Object::BigCircle(..) => self.render_big_circle(cell_size),
+            Object::Image(..) => self.render_image(cell_size),
             Object::RawSVG(..) => self.render_raw_svg(),
         };
 
         group.set("data-object", id).add(rendered)
+    }
+
+    fn render_image(&self, cell_size: usize) -> Box<dyn svg::node::Node> {
+        if let Object::Image(region, path) = self {
+            let (x, y) = region.start.coords(cell_size);
+            return Box::new(
+                svg::node::element::Image::new()
+                    .set("x", x)
+                    .set("y", y)
+                    .set("width", region.width() * cell_size)
+                    .set("height", region.height() * cell_size)
+                    .set("href", path.clone()),
+            );
+        }
+
+        panic!("Expected Image, got {:?}", self);
     }
 
     fn render_raw_svg(&self) -> Box<dyn svg::node::Node> {
