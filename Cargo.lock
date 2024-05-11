@@ -599,6 +599,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adad44e29e4c806119491a7f06f03de4d1af22c3a680dd47f1e6e179439d1f56"
 
 [[package]]
+name = "roxmltree"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3cd14fd5e3b777a7422cca79358c57a8f6e3a703d9ac187448d0daf220c2407f"
+
+[[package]]
 name = "rust-analyzer"
 version = "0.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -687,6 +693,7 @@ dependencies = [
  "nanoid",
  "once_cell",
  "rand",
+ "roxmltree",
  "rust-analyzer",
  "serde",
  "serde_cbor",

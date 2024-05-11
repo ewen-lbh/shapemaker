@@ -43,7 +43,7 @@ pub enum Fill {
     Solid(Color),
     Translucent(Color, f32),
     Hatched(Color, Angle, f32, f32),
-    Dotted(Color, f32),
+    Dotted(Color, f32, f32),
 }
 
 // Operations that can be applied on fills.
@@ -86,8 +86,7 @@ impl RenderCSS for Fill {
             Fill::Translucent(color, opacity) => {
                 format!("fill: {}; opacity: {};", color.render(colormap), opacity)
             }
-            Fill::Dotted(..) => unimplemented!(),
-            Fill::Hatched(..) => {
+            Fill::Dotted(..) | Fill::Hatched(..) => {
                 format!("fill: url(#{});", self.pattern_id())
             }
         }
@@ -115,12 +114,15 @@ impl Fill {
     pub fn pattern_id(&self) -> String {
         if let Fill::Hatched(color, angle, thickness, spacing) = self {
             return format!(
-                "pattern-{}-{}-{}-{}",
+                "pattern-hatched-{}-{}-{}-{}",
                 angle,
                 color.name(),
                 thickness,
                 spacing
             );
+        }
+        if let Fill::Dotted(color, diameter, spacing) = self {
+            return format!("pattern-dotted-{}-{}-{}", color.name(), diameter, spacing);
         }
         String::from("")
     }
@@ -166,6 +168,24 @@ impl Fill {
                                     size,
                                 ),
                             )
+                            .set("fill", color.render(colormapping)),
+                    );
+
+                Some(pattern)
+            }
+            Fill::Dotted(color, diameter, spacing) => {
+                let box_size = diameter + 2.0 * spacing;
+                let pattern = svg::node::element::Pattern::new()
+                    .set("id", self.pattern_id())
+                    .set("patternUnits", "userSpaceOnUse")
+                    .set("height", box_size)
+                    .set("width", box_size)
+                    .set("viewBox", format!("0,0,{},{}", box_size, box_size))
+                    .add(
+                        svg::node::element::Circle::new()
+                            .set("cx", box_size / 2.0)
+                            .set("cy", box_size / 2.0)
+                            .set("r", diameter / 2.0)
                             .set("fill", color.render(colormapping)),
                     );
 

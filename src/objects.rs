@@ -1,5 +1,3 @@
-use std::{cell, collections::HashMap};
-
 use crate::{ColorMapping, Fill, Filter, Point, Region, Transformation};
 use itertools::Itertools;
 use wasm_bindgen::prelude::*;
@@ -36,6 +34,10 @@ impl Object {
     pub fn filter(self, filter: Filter) -> ColoredObject {
         ColoredObject::from((self, None)).filter(filter)
     }
+
+    pub fn transform(self, transformation: Transformation) -> ColoredObject {
+        ColoredObject::from((self, None)).transform(transformation)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -49,6 +51,11 @@ pub struct ColoredObject {
 impl ColoredObject {
     pub fn filter(mut self, filter: Filter) -> Self {
         self.filters.push(filter);
+        self
+    }
+
+    pub fn transform(mut self, transformation: Transformation) -> Self {
+        self.transformations.push(transformation);
         self
     }
 
@@ -77,6 +84,8 @@ impl ColoredObject {
         if !matches!(self.object, Object::RawSVG(..)) {
             css = self.fill.render_css(colormap, !self.object.fillable());
         }
+
+        css += "transform-box: fill-box;";
 
         css += self
             .filters

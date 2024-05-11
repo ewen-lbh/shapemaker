@@ -14,11 +14,6 @@ fn canvas() -> std::sync::MutexGuard<'static, Canvas> {
     WEB_CANVAS.lock().unwrap()
 }
 
-#[wasm_bindgen(start)]
-pub fn js_init() -> Result<(), JsValue> {
-    render_image(0.0, Color::Black)?;
-    Ok(())
-}
 
 // Can't bind Color.name directly, see https://github.com/rustwasm/wasm-bindgen/issues/1715
 #[wasm_bindgen]

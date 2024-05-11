@@ -59,17 +59,24 @@ pub fn dna_analysis_machine() -> Canvas {
 
         hatches_layer.add_object(
             point,
-            if rand::thread_rng().gen_bool(0.5) {
+            if rand::thread_rng().gen_bool(0.5) || point == red_circle_at {
                 Object::BigCircle(point)
             } else {
                 Object::Rectangle(point, point)
             }
-            .color(Fill::Hatched(
-                Color::White,
-                Angle(rand::thread_rng().gen_range(0.0..360.0)),
-                (i + 5) as f32 / 10.0,
-                0.25,
-            )),
+            .color(
+                // Fill::Dotted(Color::White, (i + 8) as f32 / 10.0, (i + 3) as f32 / 10.0),
+                if point == red_circle_at {
+                    Fill::Dotted(Color::White, 3.0, 2.0)
+                } else {
+                    Fill::Hatched(
+                        Color::White,
+                        Angle(rand::thread_rng().gen_range(0.0..360.0)),
+                        (i + 5) as f32 / 10.0,
+                        0.25,
+                    )
+                },
+            ),
         );
     }
 

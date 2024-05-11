@@ -393,23 +393,21 @@ impl Canvas {
 
     pub fn random_fill(&self, hatchable: bool) -> Fill {
         if hatchable {
-            match rand::thread_rng().gen_range(1..=2) {
-                1 => Fill::Solid(random_color(self.background)),
-                2 => {
-                    let hatch_size = rand::thread_rng().gen_range(5..=100) as f32 * 1e-2;
-                    Fill::Hatched(
-                        random_color(self.background),
-                        Angle(rand::thread_rng().gen_range(0.0..360.0)),
-                        hatch_size,
-                        // under a certain hatch size, we can't see the hatching if the ratio is not ½
-                        if hatch_size < 8.0 {
-                            0.5
-                        } else {
-                            rand::thread_rng().gen_range(1..=4) as f32 / 4.0
-                        },
-                    )
-                }
-                _ => unreachable!(),
+            if rand::thread_rng().gen_bool(0.75) {
+                Fill::Solid(random_color(self.background))
+            } else {
+                let hatch_size = rand::thread_rng().gen_range(5..=100) as f32 * 1e-2;
+                Fill::Hatched(
+                    random_color(self.background),
+                    Angle(rand::thread_rng().gen_range(0.0..360.0)),
+                    hatch_size,
+                    // under a certain hatch size, we can't see the hatching if the ratio is not ½
+                    if hatch_size < 8.0 {
+                        0.5
+                    } else {
+                        rand::thread_rng().gen_range(1..=4) as f32 / 4.0
+                    },
+                )
             }
         } else {
             Fill::Solid(random_color(self.background))
@@ -488,7 +486,7 @@ impl Canvas {
         self.layers
             .iter()
             .flat_map(|layer| layer.objects.iter().flat_map(|(_, o)| o.fill))
-            .filter(|fill| matches!(fill, Fill::Hatched(..)))
+            .filter(|fill| matches!(fill, Fill::Hatched(..) | Fill::Dotted(..)))
             .unique_by(|fill| fill.pattern_id())
             .collect()
     }
