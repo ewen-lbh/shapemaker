@@ -17,8 +17,8 @@ impl Point {
 
     pub fn region(&self) -> Region {
         Region {
-            start: self.clone(),
-            end: self.clone(),
+            start: *self,
+            end: *self,
         }
     }
 

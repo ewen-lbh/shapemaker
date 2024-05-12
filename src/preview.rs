@@ -96,10 +96,10 @@ fn get_request_params(url: &str) -> (usize, usize) {
     let mut first_frame_ms = 0;
     let mut num_frames = 1;
 
-    let (_, querystring) = url.split_once("?").unwrap_or(("", ""));
+    let (_, querystring) = url.split_once('?').unwrap_or(("", ""));
     for (key, value) in querystring
-        .split("&")
-        .map(|pair| pair.split_once("=").unwrap_or(("", "")))
+        .split('&')
+        .map(|pair| pair.split_once('=').unwrap_or(("", "")))
     {
         match key {
             "from" => first_frame_ms = value.parse().unwrap_or(0),

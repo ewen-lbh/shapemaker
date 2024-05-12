@@ -41,7 +41,7 @@ impl Filter {
         format!(
             "filter-{}-{}",
             self.name(),
-            self.parameter.to_string().replace(".", "_")
+            self.parameter.to_string().replace('.', "_")
         )
     }
 }

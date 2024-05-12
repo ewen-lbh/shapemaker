@@ -73,8 +73,8 @@ impl Iterator for RegionIterator {
 impl From<&Region> for RegionIterator {
     fn from(region: &Region) -> Self {
         Self {
-            region: region.clone(),
-            current: region.start.clone(),
+            region: *region,
+            current: region.start,
         }
     }
 }
@@ -82,8 +82,8 @@ impl From<&Region> for RegionIterator {
 impl From<(&Point, &Point)> for Region {
     fn from(value: (&Point, &Point)) -> Self {
         Self {
-            start: value.0.clone(),
-            end: value.1.clone(),
+            start: *value.0,
+            end: *value.1,
         }
     }
 }
@@ -153,6 +153,13 @@ impl Region {
 
     pub fn topright(&self) -> Point {
         Point(self.end.0, self.start.1)
+    }
+
+    pub fn center(&self) -> Point {
+        Point(
+            (self.start.0 + self.end.0) / 2,
+            (self.start.1 + self.end.1) / 2,
+        )
     }
 
     pub fn max<'a>(&'a self, other: &'a Region) -> &'a Region {

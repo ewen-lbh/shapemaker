@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{ColorMapping, Fill, Filter, Point, Region, Transformation};
 use itertools::Itertools;
 use wasm_bindgen::prelude::*;
@@ -24,6 +26,7 @@ pub enum Object {
     Rectangle(Point, Point),
     Image(Region, String),
     RawSVG(Box<dyn svg::Node>),
+    // Tiling(Region, Box<Object>),
 }
 
 impl Object {
@@ -72,13 +75,27 @@ impl ColoredObject {
     ) -> svg::node::element::Group {
         let mut group = self.object.render(cell_size, object_sizes, id);
 
-        match self
+        for (key, value) in self
             .transformations
-            .render_attribute(colormap, !self.object.fillable())
+            .render_attributes(colormap, !self.object.fillable())
         {
-            (key, _) if key.is_empty() => (),
-            (key, value) => group = group.set(key, value),
+            group = group.set(key, value);
         }
+
+        let start = self.object.region().start.coords(cell_size);
+        let (w, h) = (
+            self.object.region().width() * cell_size,
+            self.object.region().height() * cell_size,
+        );
+
+        group = group.set(
+            "transform-origin",
+            format!(
+                "{} {}",
+                start.0 + (w as f32 / 2.0),
+                start.1 + (h as f32 / 2.0)
+            ),
+        );
 
         let mut css = String::new();
         if !matches!(self.object, Object::RawSVG(..)) {
@@ -91,7 +108,6 @@ impl ColoredObject {
             .filters
             .iter()
             .map(|f| f.render_fill_css(colormap))
-            .into_iter()
             .join(" ")
             .as_ref();
 
@@ -168,16 +184,16 @@ impl Default for ObjectSizes {
     }
 }
 
-pub trait RenderAttribute {
+pub trait RenderAttributes {
     const MULTIPLE_VALUES_JOIN_BY: &'static str = ", ";
 
-    fn render_fill_attribute(&self, colormap: &ColorMapping) -> (String, String);
-    fn render_stroke_attribute(&self, colormap: &ColorMapping) -> (String, String);
-    fn render_attribute(
+    fn render_fill_attribute(&self, colormap: &ColorMapping) -> HashMap<String, String>;
+    fn render_stroke_attribute(&self, colormap: &ColorMapping) -> HashMap<String, String>;
+    fn render_attributes(
         &self,
         colormap: &ColorMapping,
         fill_as_stroke_color: bool,
-    ) -> (String, String) {
+    ) -> HashMap<String, String> {
         if fill_as_stroke_color {
             self.render_stroke_attribute(colormap)
         } else {
@@ -185,29 +201,39 @@ pub trait RenderAttribute {
         }
     }
 }
-impl<T: RenderAttribute> RenderAttribute for Vec<T> {
-    fn render_fill_attribute(&self, colormap: &ColorMapping) -> (String, String) {
-        (
-            self.first()
-                .map(|v| v.render_fill_attribute(colormap).0)
-                .unwrap_or_default()
-                .clone(),
-            self.iter()
-                .map(|v| v.render_fill_attribute(colormap).1.clone())
-                .join(", "),
-        )
+impl<T: RenderAttributes> RenderAttributes for Vec<T> {
+    fn render_fill_attribute(&self, colormap: &ColorMapping) -> HashMap<String, String> {
+        let mut attrs = HashMap::<String, String>::new();
+        for attrmap in self.iter().map(|v| v.render_fill_attribute(colormap)) {
+            for (key, value) in attrmap {
+                if attrs.contains_key(&key) {
+                    attrs.insert(
+                        key.clone(),
+                        format!("{}{}{}", attrs[&key], T::MULTIPLE_VALUES_JOIN_BY, value),
+                    );
+                } else {
+                    attrs.insert(key, value);
+                }
+            }
+        }
+        attrs
     }
 
-    fn render_stroke_attribute(&self, colormap: &ColorMapping) -> (String, String) {
-        (
-            self.first()
-                .map(|v| v.render_stroke_attribute(colormap).0)
-                .unwrap_or_default()
-                .clone(),
-            self.iter()
-                .map(|v| v.render_stroke_attribute(colormap).1.clone())
-                .join(", "),
-        )
+    fn render_stroke_attribute(&self, colormap: &ColorMapping) -> HashMap<String, String> {
+        let mut attrs = HashMap::<String, String>::new();
+        for attrmap in self.iter().map(|v| v.render_stroke_attribute(colormap)) {
+            for (key, value) in attrmap {
+                if attrs.contains_key(&key) {
+                    attrs.insert(
+                        key.clone(),
+                        format!("{}{}{}", attrs[&key], T::MULTIPLE_VALUES_JOIN_BY, value),
+                    );
+                } else {
+                    attrs.insert(key, value);
+                }
+            }
+        }
+        attrs
     }
 }
 
@@ -293,10 +319,16 @@ impl Object {
                         LineSegment::InwardCurve(anchor)
                         | LineSegment::OutwardCurve(anchor)
                         | LineSegment::Straight(anchor) => {
+                            // println!(
+                            //     "extending region {} with {}",
+                            //     region,
+                            //     Region::from((start, anchor))
+                            // );
                             region = *region.max(&(start, anchor).into())
                         }
                     }
                 }
+                // println!("region for {:?} -> {}", self, region);
                 region
             }
             Object::Line(start, end, _)

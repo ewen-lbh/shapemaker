@@ -17,7 +17,7 @@ use indicatif::{ProgressBar, ProgressIterator};
 use crate::{
     preview,
     sync::SyncData,
-    ui::{self, setup_progress_bar, Log as _},
+    ui::{self, format_log_msg, setup_progress_bar, Log as _},
     Canvas, ColoredObject, Context, LayerAnimationUpdateFunction, MidiSynchronizer,
     MusicalDurationUnit, Syncable,
 };
@@ -117,6 +117,17 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             let loader = MidiSynchronizer::new(sync_data_path);
             let syncdata = loader.load(Some(&self.progress_bar));
             self.progress_bar.finish();
+            self.progress_bar.log(
+                "Loaded",
+                &format!(
+                    "{} notes from {sync_data_path}",
+                    syncdata
+                        .stems
+                        .values()
+                        .map(|v| v.notes.len())
+                        .sum::<usize>(),
+                ),
+            );
             return Self { syncdata, ..self };
         }
 
@@ -141,18 +152,29 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             .args([
                 "-ss",
                 &format!("{}", self.start_rendering_at as f32 / 1000.0),
-            ])
-            .args(["-i", self.audiofile.to_str().unwrap()])
+            ]);
+
+        if !self.audiofile.to_str().unwrap().is_empty() {
+            if !self.audiofile.exists() {
+                return Err(anyhow::format_err!(
+                    "Audio file {} does not exist",
+                    self.audiofile.to_str().unwrap()
+                ));
+            }
+            command.args(["-i", self.audiofile.to_str().unwrap()]);
+            // so that vscode can read the video file with sound lmao
+            command.args(["-acodec", "mp3"]);
+        }
+
+        command
             .args(["-t", &format!("{}", self.duration_ms() as f32 / 1000.0)])
             .args(["-c:v", "libx264"])
             .args(["-pix_fmt", "yuv420p"])
             .arg("-y")
             .arg(render_to);
 
-        println!("Running command: {:?}", command);
-
         match command.output() {
-            Err(e) => Err(anyhow::format_err!("Failed to execute ffmpeg: {}", e).into()),
+            Err(e) => Err(anyhow::format_err!("Failed to execute ffmpeg: {}", e)),
             Ok(r) => {
                 println!("{}", std::str::from_utf8(&r.stdout).unwrap());
                 println!("{}", std::str::from_utf8(&r.stderr).unwrap());
@@ -338,7 +360,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             }),
             render_function: Box::new(move |canvas, ctx| {
                 let object = create_object(canvas, ctx)?;
-                canvas.layer(&layer_name).set_object(object_name, object);
+                canvas.layer(layer_name).set_object(object_name, object);
                 Ok(())
             }),
         })
@@ -569,7 +591,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             context.timestamp = milliseconds_to_timestamp(context.ms).to_string();
             context.beat_fractional = (context.bpm * context.ms) as f32 / (1000.0 * 60.0);
             context.beat = context.beat_fractional as usize;
-            context.frame = ((self.fps * context.ms) as f64 / 1000.0) as usize;
+            context.frame = self.fps * context.ms / 1000;
 
             progress_bar.set_message(context.timestamp.clone());
 
@@ -596,16 +618,8 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
                 }
             }
 
-            for hook in &self.hooks {
-                if (hook.when)(
-                    &canvas,
-                    &context,
-                    previous_rendered_beat,
-                    previous_rendered_frame,
-                ) {
-                    (hook.render_function)(&mut canvas, &mut context)?;
-                }
-            }
+            // Render later hooks first, so that for example animations that aren't finished yet get overwritten by next frame's hook, if the next frames touches the same object
+            // This is way better to cancel early animations such as fading out an object that appears on every note of a stem, if the next note is too close for the fade-out to finish.
 
             let mut later_hooks_to_delete: Vec<usize> = vec![];
 
@@ -623,6 +637,17 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             for i in later_hooks_to_delete {
                 if i < context.later_hooks.len() {
                     context.later_hooks.remove(i);
+                }
+            }
+
+            for hook in &self.hooks {
+                if (hook.when)(
+                    &canvas,
+                    &context,
+                    previous_rendered_beat,
+                    previous_rendered_frame,
+                ) {
+                    (hook.render_function)(&mut canvas, &mut context)?;
                 }
             }
 
@@ -653,6 +678,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         let mut frame_writer_threads = vec![];
         let mut frames_to_write: Vec<(String, usize, usize)> = vec![];
 
+        create_dir_all(self.frames_output_directory)?;
         remove_dir_all(self.frames_output_directory)?;
         create_dir(self.frames_output_directory)?;
         create_dir_all(Path::new(&output_file).parent().unwrap())?;
@@ -671,8 +697,8 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         }
 
         self.progress_bar.log(
-            "Finished",
-            &format!("rendering {} frames to SVG", frames_to_write.len()),
+            "Rendered",
+            &format!("{} frames to SVG", frames_to_write.len()),
         );
 
         frames_to_write.retain(|(_, _, ms)| *ms >= self.start_rendering_at);
@@ -686,7 +712,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         for (frame, no, _) in &frames_to_write {
             std::fs::write(
                 format!("{}/{}.svg", self.frames_output_directory, no),
-                &frame,
+                frame,
             )?;
         }
 
@@ -723,12 +749,18 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             handle.join().unwrap();
         }
 
-        self.progress_bar.log("Rendered", "SVG frames to PNG");
+        self.progress_bar.log(
+            "Converted",
+            &format!("{} SVG frames to PNG", self.progress_bar.position()),
+        );
         self.progress_bar.finish_and_clear();
 
-        let spinner = ui::Spinner::start("Building video…");
+        let spinner = ui::Spinner::start("Building", "video");
         let result = self.build_video(&output_file);
-        spinner.end(&format!("Built video to {}", output_file));
+        spinner.end(&format_log_msg(
+            "Built",
+            &format!("video to {}", output_file),
+        ));
 
         result
     }

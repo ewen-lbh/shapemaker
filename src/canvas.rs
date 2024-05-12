@@ -1,5 +1,5 @@
 use core::panic;
-use std::{cmp, collections::HashMap, io::Write as _, ops::Range};
+use std::{collections::HashMap, io::Write as _, ops::Range};
 
 use anyhow::Result;
 use itertools::Itertools as _;
@@ -63,6 +63,10 @@ impl Canvas {
     }
 
     pub fn layer(&mut self, name: &str) -> &mut Layer {
+        if !self.layer_exists(name) {
+            panic!("Layer {} does not exist", name);
+        }
+
         self.layer_safe(name).unwrap()
     }
 
@@ -72,7 +76,7 @@ impl Canvas {
         }
 
         self.layers.push(Layer::new(name));
-        self.layer(name)
+        self.layers.last_mut().unwrap()
     }
 
     pub fn layer_or_empty(&mut self, name: &str) -> &mut Layer {
@@ -96,25 +100,16 @@ impl Canvas {
     /// puts this layer on top, and the others below, without changing their order
     pub fn put_layer_on_top(&mut self, name: &str) {
         self.ensure_layer_exists(name);
-        self.layers.sort_by(|a, _| {
-            if a.name == name {
-                cmp::Ordering::Less
-            } else {
-                cmp::Ordering::Greater
-            }
-        })
+        let target_index = self.layers.iter().position(|l| l.name == name).unwrap();
+        self.layers.swap(0, target_index)
     }
 
     /// puts this layer on bottom, and the others above, without changing their order
     pub fn put_layer_on_bottom(&mut self, name: &str) {
         self.ensure_layer_exists(name);
-        self.layers.sort_by(|a, _| {
-            if a.name == name {
-                cmp::Ordering::Greater
-            } else {
-                cmp::Ordering::Less
-            }
-        })
+        let target_index = self.layers.iter().position(|l| l.name == name).unwrap();
+        let last_index = self.layers.len() - 1;
+        self.layers.swap(last_index, target_index)
     }
 
     /// re-order layers. The first layer in the list will be on top, the last at the bottom
@@ -223,7 +218,7 @@ impl Canvas {
             );
         }
         Layer {
-            object_sizes: self.object_sizes.clone(),
+            object_sizes: self.object_sizes,
             name: name.to_string(),
             objects,
             _render_cache: None,
@@ -258,7 +253,7 @@ impl Canvas {
             );
         }
         Layer {
-            object_sizes: self.object_sizes.clone(),
+            object_sizes: self.object_sizes,
             name: layer_name.to_owned(),
             objects,
             _render_cache: None,
@@ -433,9 +428,11 @@ impl Canvas {
             ((resolution as f32 / aspect_ratio) as usize, resolution)
         };
 
-        let mut spawned = std::process::Command::new("magick")
-            .args(["-background", "none"])
-            .args(["-size", &format!("{}x{}", width, height)])
+        let mut spawned = std::process::Command::new("resvg")
+            .args(["--background", "transparent"])
+            .args(["--width", &format!("{width}")])
+            .args(["--height", &format!("{height}")])
+            .args(["--resources-dir", "."])
             .arg("-")
             .arg(at)
             .stdin(std::process::Stdio::piped())
@@ -462,7 +459,7 @@ impl Canvas {
     }
 
     pub fn aspect_ratio(&self) -> f32 {
-        return self.width() as f32 / self.height() as f32;
+        self.width() as f32 / self.height() as f32
     }
 
     pub fn remove_all_objects_in(&mut self, region: &Region) {

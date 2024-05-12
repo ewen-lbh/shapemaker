@@ -1,7 +1,11 @@
+use std::{
+    collections::{HashMap},
+};
+
 use slug::slugify;
 use wasm_bindgen::prelude::*;
 
-use crate::RenderAttribute;
+use crate::RenderAttributes;
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -70,12 +74,13 @@ impl Transformation {
     }
 }
 
-impl RenderAttribute for Transformation {
+impl RenderAttributes for Transformation {
     const MULTIPLE_VALUES_JOIN_BY: &'static str = " ";
 
-    fn render_fill_attribute(&self, _colormap: &crate::ColorMapping) -> (String, String) {
-        (
-            "transform".to_owned(),
+    fn render_fill_attribute(&self, _colormap: &crate::ColorMapping) -> HashMap<String, String> {
+        let mut attrs = HashMap::new();
+        attrs.insert(
+            "transform".to_string(),
             match self {
                 Transformation::Scale(x, y) => format!("scale({}  {})", x, y),
                 Transformation::Rotate(angle) => format!("rotate({})", angle),
@@ -84,10 +89,11 @@ impl RenderAttribute for Transformation {
                     format!("matrix({}, {}, {}, {}, {}, {})", a, b, c, d, e, f)
                 }
             },
-        )
+        );
+        attrs
     }
 
-    fn render_stroke_attribute(&self, colormap: &crate::ColorMapping) -> (String, String) {
+    fn render_stroke_attribute(&self, colormap: &crate::ColorMapping) -> HashMap<String, String> {
         self.render_fill_attribute(colormap)
     }
 }

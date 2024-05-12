@@ -58,7 +58,7 @@ impl FillOperations for Fill {
         match self {
             Fill::Solid(color) => Fill::Translucent(*color, opacity),
             Fill::Translucent(color, _) => Fill::Translucent(*color, opacity),
-            _ => self.clone(),
+            _ => *self,
         }
     }
 
@@ -143,7 +143,7 @@ impl Fill {
                     .set("viewBox", format!("0,0,{},{}", size, size))
                     .set(
                         "patternTransform",
-                        format!("rotate({})", (angle.clone() - Angle(45.0)).degrees()),
+                        format!("rotate({})", (*angle - Angle(45.0)).degrees()),
                     )
                     // https://stackoverflow.com/a/55104220/9943464
                     .add(

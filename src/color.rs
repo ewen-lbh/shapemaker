@@ -7,10 +7,12 @@ use std::{
 
 use rand::Rng;
 use serde::Deserialize;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
 pub enum Color {
     Black,
     White,
@@ -51,6 +53,10 @@ pub fn random_color(except: Option<Color>) -> Color {
         .collect::<Vec<_>>();
 
     *candidates[rand::thread_rng().gen_range(0..candidates.len())]
+}
+
+pub fn all_colors() -> Vec<Color> {
+    Color::iter().collect()
 }
 
 impl Default for Color {
@@ -160,7 +166,7 @@ impl ColorMapping {
     pub fn from_css(content: &str) -> ColorMapping {
         let mut mapping = ColorMapping::default();
         for line in content.lines() {
-            mapping.from_css_line(&line);
+            mapping.from_css_line(line);
         }
         mapping
     }
@@ -266,8 +272,8 @@ impl ColorMapping {
     }
 
     fn from_css_line(&mut self, line: &str) {
-        if let Some((name, value)) = line.trim().split_once(":") {
-            let value = value.trim().trim_end_matches(";").to_owned();
+        if let Some((name, value)) = line.trim().split_once(':') {
+            let value = value.trim().trim_end_matches(';').to_owned();
             match name.trim() {
                 "black" => self.black = value,
                 "white" => self.white = value,

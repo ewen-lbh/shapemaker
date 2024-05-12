@@ -59,13 +59,13 @@ pub fn render_image(opacity: f32, color: Color) -> Result<(), JsValue> {
 pub fn map_to_midi_controller() {}
 
 #[wasm_bindgen]
-pub fn render_canvas_into(selector: String) -> () {
+pub fn render_canvas_into(selector: String) {
     let svgstring = canvas().render(false).unwrap_throw();
     append_new_div_inside(svgstring, selector)
 }
 
 #[wasm_bindgen]
-pub fn render_canvas_at(selector: String) -> () {
+pub fn render_canvas_at(selector: String) {
     let svgstring = canvas().render(false).unwrap_throw();
     replace_content_with(svgstring, selector)
 }
@@ -130,14 +130,14 @@ impl From<(MidiEvent, MidiEventData)> for MidiMessage {
 }
 
 #[wasm_bindgen]
-pub fn render_canvas(render_background: Option<bool>) -> () {
+pub fn render_canvas(render_background: Option<bool>) {
     canvas()
         .render(render_background.unwrap_or(false))
         .unwrap_throw();
 }
 
 #[wasm_bindgen]
-pub fn set_palette(palette: ColorMapping) -> () {
+pub fn set_palette(palette: ColorMapping) {
     canvas().colormap = palette;
 }
 
@@ -182,14 +182,14 @@ fn query_selector(selector: String) -> web_sys::Element {
         .expect_throw("could not get the element, but is was found (shouldn't happen)")
 }
 
-fn append_new_div_inside(content: String, selector: String) -> () {
+fn append_new_div_inside(content: String, selector: String) {
     let output = document().create_element("div").unwrap();
     output.set_class_name("frame");
     output.set_inner_html(&content);
     query_selector(selector).append_child(&output).unwrap();
 }
 
-fn replace_content_with(content: String, selector: String) -> () {
+fn replace_content_with(content: String, selector: String) {
     query_selector(selector).set_inner_html(&content);
 }
 
@@ -206,15 +206,15 @@ impl LayerWeb {
         canvas().render(false).unwrap_throw()
     }
 
-    pub fn render_into(&self, selector: String) -> () {
+    pub fn render_into(&self, selector: String) {
         append_new_div_inside(self.render(), selector)
     }
 
-    pub fn render_at(self, selector: String) -> () {
+    pub fn render_at(self, selector: String) {
         replace_content_with(self.render(), selector)
     }
 
-    pub fn paint_all(&self, color: Color, opacity: Option<f32>, filter: Filter) -> () {
+    pub fn paint_all(&self, color: Color, opacity: Option<f32>, filter: Filter) {
         canvas()
             .layer(&self.name)
             .paint_all_objects(Fill::Translucent(color, opacity.unwrap_or(1.0)));
@@ -236,7 +236,7 @@ impl LayerWeb {
         end: Point,
         thickness: f32,
         color: Color,
-    ) -> () {
+    ) {
         canvas().layer(name).add_object(
             name,
             (
@@ -253,7 +253,7 @@ impl LayerWeb {
         end: Point,
         thickness: f32,
         color: Color,
-    ) -> () {
+    ) {
         canvas().layer(name).add_object(
             name,
             Object::CurveOutward(start, end, thickness).color(Fill::Solid(color)),
@@ -266,23 +266,23 @@ impl LayerWeb {
         end: Point,
         thickness: f32,
         color: Color,
-    ) -> () {
+    ) {
         canvas().layer(name).add_object(
             name,
             Object::CurveInward(start, end, thickness).color(Fill::Solid(color)),
         )
     }
-    pub fn new_small_circle(&self, name: &str, center: Point, color: Color) -> () {
+    pub fn new_small_circle(&self, name: &str, center: Point, color: Color) {
         canvas()
             .layer(name)
             .add_object(name, Object::SmallCircle(center).color(Fill::Solid(color)))
     }
-    pub fn new_dot(&self, name: &str, center: Point, color: Color) -> () {
+    pub fn new_dot(&self, name: &str, center: Point, color: Color) {
         canvas()
             .layer(name)
             .add_object(name, Object::Dot(center).color(Fill::Solid(color)))
     }
-    pub fn new_big_circle(&self, name: &str, center: Point, color: Color) -> () {
+    pub fn new_big_circle(&self, name: &str, center: Point, color: Color) {
         canvas()
             .layer(name)
             .add_object(name, Object::BigCircle(center).color(Fill::Solid(color)))
@@ -294,7 +294,7 @@ impl LayerWeb {
         text: String,
         font_size: f32,
         color: Color,
-    ) -> () {
+    ) {
         canvas().layer(name).add_object(
             name,
             Object::Text(anchor, text, font_size).color(Fill::Solid(color)),
@@ -306,7 +306,7 @@ impl LayerWeb {
         topleft: Point,
         bottomright: Point,
         color: Color,
-    ) -> () {
+    ) {
         canvas().layer(name).add_object(
             name,
             Object::Rectangle(topleft, bottomright).color(Fill::Solid(color)),

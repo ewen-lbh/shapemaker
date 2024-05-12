@@ -11,6 +11,8 @@ pub struct Layer {
     pub _render_cache: Option<svg::node::element::Group>,
 }
 
+static DISABLE_CACHE: bool = true;
+
 impl Layer {
     pub fn new(name: &str) -> Self {
         Layer {
@@ -35,16 +37,20 @@ impl Layer {
     }
 
     pub fn object(&mut self, name: &str) -> &mut ColoredObject {
-        self.objects.get_mut(name).unwrap()
+        self.safe_object(name).unwrap()
+    }
+
+    pub fn safe_object(&mut self, name: &str) -> Option<&mut ColoredObject> {
+        self.objects.get_mut(name)
     }
 
     // Flush the render cache.
-    pub fn flush(&mut self) -> () {
+    pub fn flush(&mut self) {
         self._render_cache = None;
     }
 
-    pub fn replace(&mut self, with: Layer) -> () {
-        self.objects = with.objects.clone();
+    pub fn replace(&mut self, with: Layer) {
+        self.objects.clone_from(&with.objects);
         self.flush();
     }
 
@@ -55,7 +61,7 @@ impl Layer {
 
     pub fn paint_all_objects(&mut self, fill: Fill) {
         for (_id, obj) in &mut self.objects {
-            obj.fill = Some(fill.clone());
+            obj.fill = Some(fill);
         }
         self.flush();
     }
@@ -119,8 +125,10 @@ impl Layer {
         cell_size: usize,
         object_sizes: ObjectSizes,
     ) -> svg::node::element::Group {
-        if let Some(cached_svg) = &self._render_cache {
-            return cached_svg.clone();
+        if !DISABLE_CACHE {
+            if let Some(cached_svg) = &self._render_cache {
+                return cached_svg.clone();
+            }
         }
 
         let mut layer_group = svg::node::element::Group::new()
@@ -128,7 +136,7 @@ impl Layer {
             .set("data-layer", self.name.clone());
 
         for (id, obj) in &self.objects {
-            layer_group = layer_group.add(obj.render(cell_size, object_sizes, &colormap, &id));
+            layer_group = layer_group.add(obj.render(cell_size, object_sizes, &colormap, id));
         }
 
         self._render_cache = Some(layer_group.clone());

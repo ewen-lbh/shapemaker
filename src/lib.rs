@@ -26,6 +26,7 @@ pub use canvas::*;
 pub use color::*;
 pub use fill::*;
 pub use filter::*;
+use itertools::Itertools;
 pub use layer::*;
 pub use midi::MidiSynchronizer;
 pub use objects::*;
@@ -59,7 +60,14 @@ impl<'a, C> Context<'a, C> {
     pub fn stem(&self, name: &str) -> StemAtInstant {
         let stems = &self.syncdata.stems;
         if !stems.contains_key(name) {
-            panic!("No stem named {:?} found.", name);
+            panic!(
+                "No stem named {:?} found. Available stems:\n{}\n",
+                name,
+                stems
+                    .keys()
+                    .sorted()
+                    .fold(String::new(), |acc, k| format!("{acc}\n\t{k}"))
+            );
         }
         StemAtInstant {
             amplitude: *stems[name].amplitude_db.get(self.ms).unwrap_or(&0.0),
@@ -76,12 +84,8 @@ impl<'a, C> Context<'a, C> {
         }
     }
 
-    pub fn dump_stems(&self, to: PathBuf) -> Result<()> {
-        std::fs::create_dir_all(&to)?;
-        for (name, stem) in self.syncdata.stems.iter() {
-            fs::write(to.join(name), format!("{:?}", stem))?;
-        }
-        Ok(())
+    pub fn dump_syncdata(&self, to: PathBuf) -> Result<()> {
+        Ok(serde_cbor::to_writer(fs::File::create(to)?, self.syncdata)?)
     }
 
     pub fn marker(&self) -> String {
