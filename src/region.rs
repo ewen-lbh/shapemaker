@@ -267,7 +267,7 @@ impl Region {
 
     /// resized is like enlarged, but transforms from the center, by first translating the region by (-dx, -dy)
     pub fn resized(&self, dx: i32, dy: i32) -> Self {
-        self.translated(-dx, -dy).enlarged(dx - 1, dy - 1)
+        self.translated(-dx / 2, -dy / 2).enlarged(dx, dy)
     }
 
     pub fn x_range(&self) -> std::ops::RangeInclusive<usize> {
