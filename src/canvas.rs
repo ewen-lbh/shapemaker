@@ -432,6 +432,7 @@ impl Canvas {
             .args(["--background", "transparent"])
             .args(["--width", &format!("{width}")])
             .args(["--height", &format!("{height}")])
+            .args(["--use-font-file", "Inconsolata-Bold.ttf"])
             .args(["--resources-dir", "."])
             .arg("-")
             .arg(at)

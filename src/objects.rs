@@ -424,7 +424,7 @@ impl Object {
                 .set("x", coords.0)
                 .set("y", coords.1)
                 .set("font-size", format!("{}pt", font_size))
-                .set("font-family", "Victor Mono");
+                .set("font-family", "Inconsolata");
 
             if centered {
                 node = node
