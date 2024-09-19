@@ -103,7 +103,7 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
             commands: vec![],
             frames: vec![],
             frames_output_directory: "frames/",
-            resolution: 1000,
+            resolution: 1920,
             syncdata: SyncData::default(),
             audiofile: PathBuf::new(),
             duration_override: None,
