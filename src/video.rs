@@ -1,3 +1,4 @@
+use std::process;
 use std::{
     cmp::min,
     collections::HashMap,
@@ -92,6 +93,14 @@ impl<AdditionalContext: Default> Default for Video<AdditionalContext> {
     fn default() -> Self {
         Self::new(Canvas::new(vec!["root"]))
     }
+}
+
+fn is_binary_installed(binary: &str) -> bool {
+    process::Command::new("which")
+        .arg(binary)
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
 }
 
 impl<AdditionalContext: Default> Video<AdditionalContext> {
@@ -675,6 +684,15 @@ impl<AdditionalContext: Default> Video<AdditionalContext> {
         workers_count: usize,
         _preview_only: bool,
     ) -> Result<()> {
+        // Ensure resvg is installed
+        if !is_binary_installed("resvg") {
+            panic!("resvg is not installed. Please install it by running `cargo install resvg`.");
+        }
+        // Ensure ffmpeg is installed
+        if !is_binary_installed("ffmpeg") {
+            panic!("ffmpeg is not installed. Please install it.");
+        }
+
         let mut frame_writer_threads = vec![];
         let mut frames_to_write: Vec<(String, usize, usize)> = vec![];
 
