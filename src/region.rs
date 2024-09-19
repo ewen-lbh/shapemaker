@@ -1,4 +1,4 @@
-use crate::Point;
+use crate::{Object, Point};
 use anyhow::{format_err, Error, Result};
 use backtrace::Backtrace;
 use rand::Rng;
@@ -45,6 +45,10 @@ impl Region {
         }
 
         Ok(())
+    }
+
+    pub fn rectangle(&self) -> Object {
+        Object::Rectangle(self.start, self.end)
     }
 }
 
