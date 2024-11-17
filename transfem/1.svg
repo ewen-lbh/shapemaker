@@ -1,0 +1,65 @@
+<svg height="170" viewBox="-10 -10 170 170" width="170" xmlns="http://www.w3.org/2000/svg">
+<rect fill="#F5A9B8" height="170" width="170" x="-10" y="-10"/>
+<g class="layer" data-layer="feur">
+<g data-object="feur#7" style="fill: white;transform-box: fill-box;" transform-origin="75 50">
+<path d="M0,0 L100,0 L100,50 L100,50 L100,50 z"/>
+</g>
+<g data-object="feur#2" style="stroke: #5BCEFA; fill: transparent;transform-box: fill-box;" transform-origin="25 75">
+<line stroke-width="2" x1="0" x2="0" y1="0" y2="100"/>
+</g>
+<g data-object="feur#14" style="fill: url(#pattern-hatched-122.00515deg-white-0.35-0.5);transform-box: fill-box;" transform-origin="25 75">
+<circle cx="25" cy="75" r="25"/>
+</g>
+<g data-object="feur#12" style="fill: #5BCEFA;transform-box: fill-box;" transform-origin="25 75">
+<circle cx="25" cy="75" r="25"/>
+</g>
+<g data-object="feur#6" style="fill: white;transform-box: fill-box;" transform-origin="100 125">
+<path d="M50,100 L100,100 L100,50 z"/>
+</g>
+<g data-object="feur#8" style="fill: #5BCEFA;transform-box: fill-box;" transform-origin="100 75">
+<path d="M50,50 L0,50 L100,50 L0,100 L0,100 z"/>
+</g>
+<g data-object="feur#9" style="fill: #5BCEFA;transform-box: fill-box;" transform-origin="75 75">
+<path d="M0,50 L100,50 L50,0 L50,50 L50,100 z"/>
+</g>
+<g data-object="feur#1" style="stroke: white; fill: transparent;transform-box: fill-box;" transform-origin="100 50">
+<path d="M100,50 Q100,0,50,0"/>
+</g>
+<g data-object="feur#11" style="stroke: white; fill: transparent;transform-box: fill-box;" transform-origin="150 50">
+<path d="M100,50 Q150,50,150,0"/>
+</g>
+<g data-object="feur#3" style="fill: url(#pattern-hatched-202.30237deg-white-0.51-0.5);transform-box: fill-box;" transform-origin="75 25">
+<circle cx="75" cy="25" r="25"/>
+</g>
+<g data-object="feur#0" style="fill: white;transform-box: fill-box;" transform-origin="25 25">
+<circle cx="25" cy="25" r="25"/>
+</g>
+<g data-object="feur#13" style="fill: white;transform-box: fill-box;" transform-origin="125 25">
+<circle cx="100" cy="0" r="2"/>
+</g>
+<g data-object="feur#4" style="stroke: white; fill: transparent;transform-box: fill-box;" transform-origin="100 100">
+<line stroke-width="2" x1="100" x2="50" y1="100" y2="50"/>
+</g>
+<g data-object="feur#5" style="stroke: white; fill: transparent;transform-box: fill-box;" transform-origin="100 100">
+<line stroke-width="2" x1="100" x2="0" y1="100" y2="0"/>
+</g>
+<g data-object="feur#10" style="fill: url(#pattern-hatched-305.11963deg-white-0.26-0.5);transform-box: fill-box;" transform-origin="125 25">
+<circle cx="100" cy="0" r="5"/>
+</g>
+</g>
+<g class="layer" data-layer="root"/>
+<defs>
+<pattern height="0.7" id="pattern-hatched-122.00515deg-white-0.35-0.5" patternTransform="rotate(77.00515)" patternUnits="userSpaceOnUse" viewBox="0,0,0.35,0.35" width="0.7">
+<polygon fill="white" points="0,0 0.175,0 0,0.175"/>
+<polygon fill="white" points="0,0.35 0.35,0 0.35,0.175 0.175,0.35"/>
+</pattern>
+<pattern height="1.02" id="pattern-hatched-202.30237deg-white-0.51-0.5" patternTransform="rotate(157.30237)" patternUnits="userSpaceOnUse" viewBox="0,0,0.51,0.51" width="1.02">
+<polygon fill="white" points="0,0 0.255,0 0,0.255"/>
+<polygon fill="white" points="0,0.51 0.51,0 0.51,0.255 0.255,0.51"/>
+</pattern>
+<pattern height="0.52" id="pattern-hatched-305.11963deg-white-0.26-0.5" patternTransform="rotate(260.11963)" patternUnits="userSpaceOnUse" viewBox="0,0,0.26,0.26" width="0.52">
+<polygon fill="white" points="0,0 0.13,0 0,0.13"/>
+<polygon fill="white" points="0,0.26 0.26,0 0.26,0.13 0.13,0.26"/>
+</pattern>
+</defs>
+</svg>

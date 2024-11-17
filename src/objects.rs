@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{ColorMapping, Fill, Filter, Point, Region, Transformation};
+use crate::{Color, ColorMapping, Fill, Filter, Point, Region, Transformation};
 use itertools::Itertools;
 use wasm_bindgen::prelude::*;
 
@@ -64,6 +64,22 @@ impl ColoredObject {
 
     pub fn clear_filters(&mut self) {
         self.filters.clear();
+    }
+
+    pub fn change_color(&mut self, color: Color) {
+        match self.fill {
+            None => (),
+            Some(Fill::Solid(_)) => self.fill = Some(Fill::Solid(color)),
+            Some(Fill::Translucent(_, opacity)) => {
+                self.fill = Some(Fill::Translucent(color, opacity))
+            }
+            Some(Fill::Hatched(_, pattern, spacing, angle)) => {
+                self.fill = Some(Fill::Hatched(color, pattern, spacing, angle))
+            }
+            Some(Fill::Dotted(_, radius, spacing)) => {
+                self.fill = Some(Fill::Dotted(color, radius, spacing))
+            }
+        }
     }
 
     pub fn render(
